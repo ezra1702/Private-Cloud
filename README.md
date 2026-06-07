@@ -323,27 +323,31 @@ Sebelum menerapkan 17 langkah utama, administrator sistem mempersiapkan lingkung
 Seluruh langkah di bawah ini menggabungkan tahapan rekayasa konfigurasi, kode implementasi, serta prosedur dan hasil pengujian sistem secara lengkap.
 
 ### BLOK 1: PENGUJIAN INFRASTRUKTUR DAN OTOMATISASI
+
 #### Pengujian Langkah 1: Pengujian Deployment Otomatis Menggunakan Ansible
 
-- **Kode Konfigurasi & Implementasi**:
-  Berikut adalah berkas-berkas konfigurasi Ansible utama untuk mengotomatisasi deployment stack:
-  - **`ansible.cfg`**:
-    ```ini
-    [defaults]
+##### Pembuatan & Konfigurasi Berkas
+Untuk melakukan langkah ini, silakan buat berkas-berkas konfigurasi berikut:
+
+Buat berkas **`ansible/ansible.cfg`** lalu salin kode berikut ke dalamnya:
+```ini
+[defaults]
 inventory = inventory.ini
 host_key_checking = False
 deprecation_warnings = False
 stdout_callback = yaml
 bin_ansible_callbacks = True
-    ```
-  - **`inventory.ini`**:
-    ```ini
-    [cloud_servers]
+```
+
+Buat berkas **`ansible/inventory.ini`** lalu salin kode berikut ke dalamnya:
+```ini
+[cloud_servers]
 localhost ansible_connection=local
-    ```
-  - **`site.yml`**:
-    ```yaml
-    ---
+```
+
+Buat berkas **`ansible/site.yml`** lalu salin kode berikut ke dalamnya:
+```yaml
+---
 - name: Deploy Enterprise Private Cloud Storage Stack on WSL2
   hosts: cloud_servers
   become: yes
@@ -387,10 +391,11 @@ localhost ansible_connection=local
 
     - name: Mengimpor tugas setup Nextcloud & Run Stack
       import_tasks: roles/nextcloud.yml
-    ```
-  - **`roles/common.yml`**:
-    ```yaml
-    ---
+```
+
+Buat berkas **`ansible/roles/common.yml`** lalu salin kode berikut ke dalamnya:
+```yaml
+---
 - name: 0. Hapus konfigurasi repositori Docker lama yang merusak APT
   file:
     path: "{{ item }}"
@@ -426,29 +431,91 @@ localhost ansible_connection=local
     - "{{ project_root }}"
     - "{{ project_root }}/config"
     - "{{ project_root }}/docker"
-    ```
+```
 
-- **Tujuan Pengujian**: Memverifikasi kemampuan Ansible Playbook `site.yml` untuk mengeksekusi semua peran modular tanpa adanya kegagalan instruksi (`failed=0`), menginstal mesin Docker Engine secara remote, menghasilkan sertifikat enkripsi SSL, dan meluncurkan seluruh kontainer stack secara konsisten dari kondisi nol.
+##### Tangkapan Layar Pengujian
+![Bukti Pengujian Langkah 1 - PLAY RECAP Ansible](img/langkah1.1.png)
+
+##### Prosedur & Analisis Pengujian
+- **Tujuan Pengujian**: Memastikan Ansible Playbook `site.yml` dapat mengeksekusi semua task tanpa kegagalan (`failed=0`), menginstal Docker, membuat sertifikat SSL, dan meluncurkan kontainer stack di localhost WSL2 secara otomatis.
 - **Desain Langkah**: Mengonfigurasi otomatisasi terpadu di host lokal target menggunakan plugin koneksi lokal Ansible. Perencanaan pengujian dirancang untuk menguji kelancaran alur otomatisasi deklaratif melintasi eskalasi privilese sistem.
-- **Input Uji**: Perintah CLI `ANSIBLE_CONFIG=ansible.cfg ansible-playbook -i inventory.ini site.yml -K` beserta input kata sandi sudo administrator.
-- **Prosedur Langkah Pengujian**:   Administrator membuka terminal WSL2 Ubuntu, berpindah ke direktori kerja Ansible, lalu mengeksekusi perintah playbook utama. Administrator memasukkan kata sandi sudo dan membiarkan Ansible Controller memproses 28 tugas secara berurutan. Setelah proses selesai, administrator memeriksa baris rekapitulasi tugas di terminal.
-- **Output yang Diharapkan**: Rekapitulasi eksekusi (*PLAY RECAP*) menampilkan status `failed=0` dan `unreachable=0`, serta menampilkan daftar tugas `ok` dan `changed` yang berhasil diterapkan pada sistem lokal.
+- **Input Uji**: Eksekusi perintah `ansible-playbook -i inventory.ini site.yml`.
+- **Prosedur Pengujian**:
+  1. Masuk ke terminal WSL2 Ubuntu.
+  2. Navigasi ke folder proyek: `cd "/mnt/c/Users/USER/Desktop/System Administator/Private-Cloud/ansible"`.
+  3. Jalankan perintah deployment: `ANSIBLE_CONFIG=ansible.cfg ansible-playbook -i inventory.ini site.yml -K`.
+  4. Amati baris output rekapitulasi di akhir tugas (*PLAY RECAP*).
+- **Output yang Diharapkan**: Semua langkah menampilkan status `ok` atau `changed`. Di akhir eksekusi, log rekap menampilkan status: `localhost : ok=28 changed=6 unreachable=0 failed=0`.
 - **Hasil Pengujian**: **SUKSES**
-- **Analisis Rekayasa Teknis**:   Berdasarkan hasil tangkapan layar eksekusi Ansible Playbook pada gambar berikut:   ![Bukti Pengujian Langkah 1 - PLAY RECAP Ansible](img/langkah1.1.png)   Ansible Controller memproses tugas dengan memetakan task roles satu per satu ke python executable lokal host WSL2. Penggunaan modul koneksi lokal `ansible_connection=local` menghindari verifikasi otentikasi SSH handshake, mempercepat eksekusi task. Status `ok=28` membuktikan 28 instruksi deklaratif telah divalidasi sukses. Status `changed=6` menandai dinamisasi konfigurasi di mana Ansible berhasil menginstal engine Docker, membuat sertifikat SSL TLS, menyalin berkas konfigurasi load balancer ke persistent directory `/opt/private-cloud/config/`, serta memicu kompilasi container stack Docker Compose.
-  
-  Mekanisme pembuatan sertifikat SSL pada role `certificates` menggunakan perintah OpenSSL req berjalan sukses menghasilkan kunci privat RSA 2048-bit dan sertifikat CRT. Modul `shell` Ansible berhasil menggabungkan kedua berkas tersebut menjadi `haproxy.pem` dengan hak akses `0600` guna meminimalisasi eksploitasi kebocoran kunci enkripsi oleh user luar non-root.
-
-  Ansible Controller juga mengonfigurasi callback module `stdout_callback = yaml` dari `ansible.cfg` untuk mencatat setiap output secara rapi. Hal ini memudahkan administrator melacak riwayat perubahan (*play tracing*) dan menganalisis runtime kegagalan tugas secara visual di layar konsol terminal WSL2.
+- **Analisis Rekayasa Teknis**:
+  Berdasarkan gambar tangkapan layar di atas, terlihat bagian akhir dari eksekusi Ansible Playbook yaitu **PLAY RECAP**. Terdapat status `failed=0`, yang membuktikan bahwa seluruh instruksi (task) di dalam playbook telah berhasil dijalankan 100% tanpa ada error (kegagalan). Status `ok=28` menunjukkan ada 28 tugas yang berhasil dieksekusi dengan baik atau dilewati karena sudah memenuhi kondisi yang diinginkan (idempotent). Status `changed=6` menunjukkan ada 6 perubahan baru yang secara aktif diterapkan pada sistem (seperti pembuatan sertifikat SSL baru, pembuatan direktori, dan menyalakan kontainer). Status `skipped=0` menegaskan bahwa tidak ada satupun instruksi yang dilewati, membuktikan bahwa Ansible berhasil mengeksekusi semua konfigurasi dari nol secara sempurna. Hasil ini memvalidasi bahwa *Infrastructure as Code* (IaC) menggunakan Ansible telah berhasil melakukan *deployment* seluruh arsitektur Private Cloud (Docker, direktori, sertifikat keamanan, konfigurasi) secara otomatis dan mulus.
 
 ---
 
 #### Pengujian Langkah 2: Pengujian Keaktifan Docker Container
 
-- **Kode Konfigurasi & Implementasi**:
-  Berikut adalah berkas orkestrator kontainer `docker-compose.yml` dan task otomatisasi instalasi Docker:
-  - **`docker/docker-compose.yml`**:
-    ```yaml
-    version: '3.8'
+##### Pembuatan & Konfigurasi Berkas
+Untuk melakukan langkah ini, silakan buat berkas-berkas konfigurasi berikut:
+
+Buat berkas **`ansible/roles/docker.yml`** lalu salin kode berikut ke dalamnya:
+```yaml
+---
+- name: 1. Buat direktori keyrings untuk GPG key Docker
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: 2. Download dan tambahkan GPG key resmi Docker
+  get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: '0644'
+    force: yes
+  when: ansible_distribution == "Ubuntu"
+
+- name: 2b. Hapus konfigurasi repositori Docker lama untuk mencegah konflik Signed-By
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/apt/sources.list.d/docker.list
+    - /etc/apt/sources.list.d/docker.sources
+  when: ansible_distribution == "Ubuntu"
+
+- name: 3. Daftarkan repositori Docker ke sumber APT
+  apt_repository:
+    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+    filename: docker
+  when: ansible_distribution == "Ubuntu"
+
+- name: 4. Jalankan APT update setelah menambahkan repositori
+  apt:
+    update_cache: yes
+  when: ansible_distribution == "Ubuntu"
+
+- name: 5. Install Docker Engine dan Docker Compose Plugin
+  apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+  when: ansible_distribution == "Ubuntu"
+
+- name: 6. Pastikan Docker service berjalan dan aktif
+  service:
+    name: docker
+    state: started
+    enabled: yes
+```
+
+Buat berkas **`docker/docker-compose.yml`** lalu salin kode berikut ke dalamnya:
+```yaml
+version: '3.8'
 
 services:
   mariadb-db:
@@ -585,84 +652,34 @@ networks:
     ipam:
       config:
         - subnet: 172.20.0.0/16
-    ```
-  - **`roles/docker.yml`**:
-    ```yaml
-    ---
-- name: 1. Buat direktori keyrings untuk GPG key Docker
-  file:
-    path: /etc/apt/keyrings
-    state: directory
-    mode: '0755'
+```
 
-- name: 2. Download dan tambahkan GPG key resmi Docker
-  get_url:
-    url: https://download.docker.com/linux/ubuntu/gpg
-    dest: /etc/apt/keyrings/docker.asc
-    mode: '0644'
-    force: yes
-  when: ansible_distribution == "Ubuntu"
+##### Tangkapan Layar Pengujian
+![Bukti Pengujian Langkah 2 - Keaktifan Container](img/langkah1.2.png)
 
-- name: 2b. Hapus konfigurasi repositori Docker lama untuk mencegah konflik Signed-By
-  file:
-    path: "{{ item }}"
-    state: absent
-  loop:
-    - /etc/apt/sources.list.d/docker.list
-    - /etc/apt/sources.list.d/docker.sources
-  when: ansible_distribution == "Ubuntu"
-
-- name: 3. Daftarkan repositori Docker ke sumber APT
-  apt_repository:
-    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
-    state: present
-    filename: docker
-  when: ansible_distribution == "Ubuntu"
-
-- name: 4. Jalankan APT update setelah menambahkan repositori
-  apt:
-    update_cache: yes
-  when: ansible_distribution == "Ubuntu"
-
-- name: 5. Install Docker Engine dan Docker Compose Plugin
-  apt:
-    name:
-      - docker-ce
-      - docker-ce-cli
-      - containerd.io
-      - docker-buildx-plugin
-      - docker-compose-plugin
-    state: present
-  when: ansible_distribution == "Ubuntu"
-
-- name: 6. Pastikan Docker service berjalan dan aktif
-  service:
-    name: docker
-    state: started
-    enabled: yes
-    ```
-
-- **Tujuan Pengujian**: Memastikan seluruh 8 kontainer mikroservis (HAProxy, Nextcloud 1 & 2, Database MariaDB, Cache Redis, Object Storage MinIO, Prometheus, Grafana) berhasil diorkestrasi oleh Docker Compose dan berada dalam status aktif berjalan (*running*) di satu virtual network bridge.
+##### Prosedur & Analisis Pengujian
+- **Tujuan Pengujian**: Memastikan seluruh kontainer mikroservis (HAProxy, Nextcloud 1 & 2, Database, Redis, MinIO, Prometheus, Grafana) berhasil dinyalakan oleh Ansible dan berjalan aktif pada satu virtual network bridge.
 - **Desain Langkah**: Menguji keaktifan daemon Docker Compose dan interkoneksi container network bridge internal menggunakan perintah status Docker CLI.
-- **Input Uji**: Perintah CLI `docker ps` pada terminal WSL2.
-- **Prosedur Langkah Pengujian**:   Administrator membuka terminal WSL2 Ubuntu, kemudian mengetikkan perintah `docker ps` untuk mengambil daftar kontainer aktif yang terdaftar di kernel Linux WSL2. Administrator menganalisis status, uptime, dan pemetaan port setiap kontainer.
-- **Output yang Diharapkan**: Daftar keluaran terminal menampilkan tepat 8 kontainer yang aktif dengan status diawali kata `Up` dan memetakan port keluar host (port 80, 443, 1936, 9091, 9090, 3000) secara tepat.
+- **Input Uji**: Perintah `docker ps`.
+- **Prosedur Pengujian**:
+  1. Buka terminal WSL2.
+  2. Ketik perintah `docker ps` dan tekan Enter.
+  3. Amati kolom `STATUS` pada seluruh kontainer (berjumlah 8 kontainer).
+- **Output yang Diharapkan**: Seluruh 8 kontainer yang terdaftar menampilkan status `Up` dan memiliki *port mapping* yang sesuai.
 - **Hasil Pengujian**: **SUKSES**
-- **Analisis Rekayasa Teknis**:   Berdasarkan tangkapan layar keluaran terminal `docker ps` pada gambar berikut:   ![Bukti Pengujian Langkah 2 - Keaktifan Container](img/langkah1.2.png)   Docker daemon secara sukses memetakan virtual namespace kontainer terisolasi di dalam network bridge `cloud-network`. Semua kontainer (seperti `haproxy-lb`, `nextcloud-app-1`, `nextcloud-app-2`, `mariadb-db`, `redis-cache`, `minio-storage`, `prom-server`, dan `grafana-dash`) menunjukkan status **Up** yang berarti tidak ada layanan yang mengalami *crash loop* atau kegagalan booting.
-  
-  Jaringan virtual bridge Docker Compose mengalokasikan subnet IP `172.20.0.0/16`. Tiap kontainer memperoleh alamat IP internal yang diasosiasikan dengan DNS container name masing-masing. Aliran trafik antar kontainer dikelola secara aman tanpa melibatkan interferensi port forwarding Windows Host secara langsung, kecuali port luar yang sengaja diekspos (seperti port 80/443 untuk load balancing, port 3000 untuk visualisasi Grafana, port 9090 untuk Prometheus, dan port 9001 untuk MinIO Console).
-
-  Keberhasilan container bootstrapping ini membuktikan keabsahan parameter resource constraints di docker-compose. Setiap container memperoleh namespace process ID (PID) yang terisolasi penuh dari kernel host target, menjamin kepatuhan aspek isolasi containerization berskala industri.
+- **Analisis Rekayasa Teknis**:
+  Berdasarkan gambar tangkapan layar output `docker ps` di atas, dapat dipastikan bahwa terdapat tepat **8 kontainer** yang berhasil berjalan di dalam lingkungan Docker, mencakup seluruh layanan mulai dari Load Balancer (HAProxy), App Server (Nextcloud x2), Database (MariaDB), Cache (Redis), Object Storage (MinIO), hingga Monitoring (Prometheus & Grafana). Kolom `STATUS` pada semua kontainer menunjukkan status **Up**, yang berarti tidak ada kontainer yang mengalami *crash*, *looping restart*, atau gagal *booting*. Kolom `PORTS` menunjukkan *port forwarding* telah terkonfigurasi dengan benar (contoh: HAProxy ter-bind ke port 80 dan 443 host, Grafana ke port 3000, MinIO console ke port 9001). Hasil ini memvalidasi bahwa skrip *docker-compose.yml* beserta konfigurasi SSL dan network yang dibuat oleh Ansible telah diimplementasikan dengan sempurna oleh Docker Engine. Keberhasilan container bootstrapping ini membuktikan keabsahan parameter resource constraints di docker-compose. Setiap container memperoleh namespace process ID (PID) yang terisolasi penuh dari kernel host target, menjamin kepatuhan aspek isolasi containerization berskala industri.
 
 ---
 
 #### Pengujian Langkah 3: Uji Coba Persistensi Data (Data Persistence Check)
 
-- **Kode Konfigurasi & Implementasi**:
-  Berikut adalah tugas penyiapan direktori basis data MariaDB dan Redis cache pada host target:
-  - **`roles/database.yml`**:
-    ```yaml
-    ---
+##### Pembuatan & Konfigurasi Berkas
+Untuk melakukan langkah ini, silakan buat berkas-berkas konfigurasi berikut:
+
+Buat berkas **`ansible/roles/database.yml`** lalu salin kode berikut ke dalamnya:
+```yaml
+---
 - name: 1. Buat direktori penyimpanan persisten basis data MariaDB
   file:
     path: "{{ project_root }}/mariadb"
@@ -670,10 +687,11 @@ networks:
     owner: 999
     group: 999
     mode: '0755'
-    ```
-  - **`roles/redis.yml`**:
-    ```yaml
-    ---
+```
+
+Buat berkas **`ansible/roles/redis.yml`** lalu salin kode berikut ke dalamnya:
+```yaml
+---
 - name: 1. Buat direktori penyimpanan persisten Redis Cache
   file:
     path: "{{ project_root }}/redis"
@@ -681,32 +699,37 @@ networks:
     owner: 999
     group: 999
     mode: '0755'
-    ```
+```
 
-- **Tujuan Pengujian**: Memastikan data relasional pada database MariaDB dan data sesi pada Redis cache tidak mengalami kerusakan atau kehilangan (*data corruption/loss*) ketika kontainernya dihentikan secara paksa dan dijalankan kembali.
+##### Tangkapan Layar Pengujian
+![Bukti Pengujian Langkah 3 - Persistensi Data](img/langkah1.3.png)
+
+##### Prosedur & Analisis Pengujian
+- **Tujuan Pengujian**: Memastikan bahwa data di dalam database (MariaDB) dan *in-memory cache* (Redis) tidak hilang meskipun kontainernya dimatikan dan dinyalakan kembali, dengan memanfaatkan fitur *Docker Volumes* yang dipasang di host.
 - **Desain Langkah**: Menstimulasi kegagalan layanan fisik dengan mematikan paksa container database dan cache, lalu memicu booting ulang untuk menguji fungsionalitas auto-recovery volume persistent.
 - **Input Uji**: Perintah CLI `docker stop mariadb-db redis-cache` diikuti oleh `docker start mariadb-db redis-cache`.
-- **Prosedur Langkah Pengujian**:   Administrator membuka terminal WSL2, mematikan kontainer database MariaDB dan Redis cache. Setelah kontainer mati sepenuhnya, administrator memicu penyalaan kembali kedua kontainer tersebut, lalu memantau keaktifannya menggunakan perintah status.
-- **Output yang Diharapkan**: Kedua kontainer berhasil dihidupkan kembali dengan status `Up` dalam hitungan detik. Log internal MariaDB menunjukkan kesiapan menerima koneksi, dan data transaksi tidak hilang.
+- **Prosedur Pengujian**:
+  1. Buka terminal WSL2.
+  2. Jalankan `docker stop mariadb-db redis-cache`.
+  3. Nyalakan ulang dengan `docker start mariadb-db redis-cache`.
+  4. Ketik `docker ps` untuk memastikan status kontainer.
+- **Output yang Diharapkan**: Kedua kontainer berhasil dihidupkan kembali (Up) dengan mulus tanpa ada indikasi file *corrupt* atau error dari *volume mounting*.
 - **Hasil Pengujian**: **SUKSES**
-- **Analisis Rekayasa Teknis**:   Berdasarkan tangkapan layar eksekusi pada gambar berikut:   ![Bukti Pengujian Langkah 3 - Persistensi Data](img/langkah1.3.png)   Ketika kontainer database MariaDB dimatikan, daemon MySQL dihentikan secara aman (*graceful shutdown*). Volume persistent yang dipetakan ke direktori host WSL2 `/opt/private-cloud/mariadb` menahan berkas biner basis data `.ibd` dan log transaksi InnoDB tetap utuh. Saat kontainer dinyalakan kembali menggunakan perintah `docker start`, MariaDB membaca direktori log volume host target, melakukan verifikasi integritas data transaksi, dan membuka socket koneksi port 3306 kembali dalam waktu 4 detik.
-  
-  Di sisi lain, Redis cache yang berjalan dengan instruksi `--appendonly yes` secara sukses merekam seluruh aktivitas transaksi write key sesi ke berkas `/data/appendonly.aof` pada volume persistent `/opt/private-cloud/redis`. Saat proses booting ulang, Redis engine mengeksekusi parser internal untuk membaca ulang berkas log AOF tersebut dan merekonstruksi seluruh struktur struktur data key-value di memori RAM, menjaga status keutuhan sesi login pengguna.
-
-  Mekanisme dynamic volume binding ini didukung kernel file mapping WSL2, yang secara transparan menyinkronkan status penulisan *inode* filesystem host target dengan filesystem virtual ekstensi Linux.
+- **Analisis Rekayasa Teknis**:
+  Berdasarkan tangkapan layar eksekusi pada gambar di atas, ketika kontainer database MariaDB dimatikan, daemon MySQL dihentikan secara aman (*graceful shutdown*). Volume persistent yang dipetakan ke direktori host WSL2 `/opt/private-cloud/mariadb` menahan berkas biner basis data `.ibd` dan log transaksi InnoDB tetap utuh. Saat kontainer dinyalakan kembali menggunakan perintah `docker start`, MariaDB membaca direktori log volume host target, melakukan verifikasi integritas data transaksi, dan membuka socket koneksi port 3306 kembali dalam waktu 4 detik. Di sisi lain, Redis cache yang berjalan dengan instruksi `--appendonly yes` secara sukses merekam seluruh aktivitas transaksi write key sesi ke berkas `/data/appendonly.aof` pada volume persistent `/opt/private-cloud/redis`. Saat proses booting ulang, Redis engine mengeksekusi parser internal untuk membaca ulang berkas log AOF tersebut dan merekonstruksi seluruh struktur struktur data key-value di memori RAM, menjaga status keutuhan sesi login pengguna. Mekanisme dynamic volume binding ini didukung kernel file mapping WSL2, yang secara transparan menyinkronkan status penulisan *inode* filesystem host target dengan filesystem virtual ekstensi Linux.
 
 ---
-
 
 ### BLOK 2: PENGUJIAN FITUR APLIKASI DAN MANAJEMEN USER
 
 #### Pengujian Langkah 4: Pengujian Akses Web Nextcloud (HTTPS)
 
-- **Kode Konfigurasi & Implementasi**:
-  Berikut adalah berkas generator sertifikat SSL self-signed dan penyiapan load balancer HAProxy:
-  - **`roles/certificates.yml`**:
-    ```yaml
-    ---
+##### Pembuatan & Konfigurasi Berkas
+Untuk melakukan langkah ini, silakan buat berkas-berkas konfigurasi berikut:
+
+Buat berkas **`ansible/roles/certificates.yml`** lalu salin kode berikut ke dalamnya:
+```yaml
+---
 - name: 1. Buat direktori penyimpanan sertifikat SSL
   file:
     path: "{{ ssl_cert_dir }}"
@@ -739,29 +762,34 @@ networks:
     mode: '0644'
     owner: root
     group: root
-    ```
+```
 
-- **Tujuan Pengujian**: Memastikan gerbang utama load balancer HAProxy aktif menerima koneksi HTTPS aman pada port 443, memproses terminasi enkripsi SSL/TLS menggunakan sertifikat self-signed, dan menyalurkan request halaman utama Nextcloud ke browser klien.
+##### Tangkapan Layar Pengujian
+![Bukti Pengujian Langkah 4 - Akses Web Nextcloud](img/langkah2.1.png)
+
+##### Prosedur & Analisis Pengujian
+- **Tujuan Pengujian**: Memastikan pengguna dapat mengakses antarmuka Nextcloud melalui protokol aman HTTPS (port 443) dengan SSL/TLS *termination* yang ditangani oleh HAProxy.
 - **Desain Langkah**: Melakukan request koneksi aman dari Windows Host ke virtual machine WSL2 melalui gerbang port 443 load balancer.
-- **Input Uji**: URL `https://localhost` di browser Chrome/Edge.
-- **Prosedur Langkah Pengujian**:   Administrator membuka browser web di Windows Host, mengetik alamat URL `https://localhost`, lalu menekan Enter. Karena menggunakan sertifikat lokal buatan OpenSSL, browser akan menampilkan peringatan keamanan. Administrator mengklik tombol *Advanced* lalu memilih *Proceed to localhost*.
-- **Output yang Diharapkan**: Browser berhasil memuat halaman awal konfigurasi Nextcloud secara visual. Indikator protokol HTTPS aktif tertera di address bar browser.
+- **Input Uji**: Memasukkan URL `https://localhost` di browser.
+- **Prosedur Pengujian**:
+  1. Buka browser (Chrome/Firefox/Edge) di Windows Host.
+  2. Ketik alamat URL: `https://localhost` dan tekan Enter.
+  3. Lewati peringatan keamanan SSL *self-signed* (klik *Advanced* -> *Proceed to localhost*).
+- **Output yang Diharapkan**: Antarmuka web menampilkan form instalasi atau login Nextcloud. Status HTTPS terlihat di *address bar* browser (meskipun ditandai *Not secure* karena sertifikat lokal).
 - **Hasil Pengujian**: **SUKSES**
-- **Analisis Rekayasa Teknis**:   Berdasarkan hasil visual browser pada gambar berikut:   ![Bukti Pengujian Langkah 4 - Akses Web Nextcloud](img/langkah2.1.png)   Request browser Windows Host diarahkan ke interface WSL2 port 443 yang ditangani oleh kontainer `haproxy-lb`. HAProxy mengeksekusi jabat tangan TLS (*TLS Handshake*) menggunakan berkas sertifikat RSA 2048-bit `haproxy.pem` yang dimuat pada block frontend https. Setelah enkripsi disepakati, HAProxy mendekripsi header HTTP request (*SSL Termination*) dan meneruskan request HTTP mentah via bridge network internal ke kontainer aplikasi backend Nextcloud di port 80.
-  
-  Mekanisme SSL Termination terpusat ini sangat meningkatkan performa komputasi server. Kontainer aplikasi Nextcloud backend dibebaskan sepenuhnya dari kalkulasi matematika kriptografi SSL handshake, menghemat siklus clock CPU untuk memproses kompilasi script PHP halaman beranda. Peringatan tidak aman pada address bar browser adalah respons wajar karena sertifikat SSL di-generate sendiri secara lokal (*self-signed*) dan tidak diverifikasi oleh CA (Certificate Authority) publik global.
-
-  Mekanisme redirection otomatis dari HTTP port 80 ke HTTPS port 443 juga bekerja di level HAProxy menggunakan aturan perutean `redirect scheme https unless { ssl_fc }`, menjamin semua client terhubung secara aman tanpa celah kebocoran data.
+- **Analisis Rekayasa Teknis**:
+  Berdasarkan hasil visual browser pada gambar di atas, request browser Windows Host diarahkan ke interface WSL2 port 443 yang ditangani oleh kontainer `haproxy-lb`. HAProxy mengeksekusi jabat tangan TLS (*TLS Handshake*) menggunakan berkas sertifikat RSA 2048-bit `haproxy.pem` yang dimuat pada block frontend https. Setelah enkripsi disepakati, HAProxy mendekripsi header HTTP request (*SSL Termination*) dan meneruskan request HTTP mentah via bridge network internal ke kontainer aplikasi Nextcloud backend di port 80. Mekanisme SSL Termination terpusat ini sangat meningkatkan performa komputasi server. Kontainer aplikasi Nextcloud backend dibebaskan sepenuhnya dari kalkulasi matematika kriptografi SSL handshake, menghemat siklus clock CPU untuk memproses kompilasi script PHP halaman beranda. Peringatan tidak aman pada address bar browser adalah respons wajar karena sertifikat SSL di-generate sendiri secara lokal (*self-signed*) dan tidak diverifikasi oleh CA (Certificate Authority) publik global. Mekanisme redirection otomatis dari HTTP port 80 ke HTTPS port 443 juga bekerja di level HAProxy menggunakan aturan perutean `redirect scheme https unless { ssl_fc }`, menjamin semua client terhubung secara aman tanpa celah kebocoran data.
 
 ---
 
 #### Pengujian Langkah 5: Pengujian Pembuatan/Login Administrator
 
-- **Kode Konfigurasi & Implementasi**:
-  Berikut adalah tugas otomatisasi penyediaan Nextcloud container dan setup trusted domains:
-  - **`roles/nextcloud.yml`**:
-    ```yaml
-    ---
+##### Pembuatan & Konfigurasi Berkas
+Untuk melakukan langkah ini, silakan buat berkas-berkas konfigurasi berikut:
+
+Buat berkas **`ansible/roles/nextcloud.yml`** lalu salin kode berikut ke dalamnya:
+```yaml
+---
 - name: 1. Salin berkas docker-compose.yml dari workspace ke host target
   copy:
     src: "{{ playbook_dir }}/../docker/docker-compose.yml"
@@ -809,124 +837,179 @@ networks:
 - name: 3. Tampilkan output jalannya kontainer
   debug:
     var: compose_output.stdout_lines
-    ```
+```
 
-- **Tujuan Pengujian**: Memverifikasi bahwa proses pembuatan akun administrator utama dapat diselesaikan dengan sukses, data kredensial tersimpan aman di database, dan admin dapat masuk ke halaman beranda manajemen sistem Nextcloud.
+##### Tangkapan Layar Pengujian
+![Bukti Pengujian Langkah 5 - Login Administrator Nextcloud](img/langkah2.2.png)
+
+##### Prosedur & Analisis Pengujian
+- **Tujuan Pengujian**: Memverifikasi pengguna dengan hak akses tingkat tinggi (Admin) dapat didaftarkan, masuk ke sistem, dan mengelola konfigurasi global Nextcloud.
 - **Desain Langkah**: Mengisi form inisialisasi akun admin pertama kali di Nextcloud dan memvalidasi akses ke panel administrasi sistem.
-- **Input Uji**: Formulir input username `admin` dan password `adminrootpassword`.
-- **Prosedur Langkah Pengujian**:   Pada antarmuka awal Nextcloud di browser, administrator memasukkan username `admin` dan password `adminrootpassword` pada form yang disediakan, lalu mengklik tombol *Install/Finish setup*. Setelah proses instalasi database internal selesai, administrator login ke dashboard.
-- **Output yang Diharapkan**: Proses inisialisasi berhasil diselesaikan. Browser mengarah ke halaman dashboard utama akun admin. Opsi menu administrasi global dan manajemen user terlihat aktif pada avatar admin di kanan atas.
+- **Input Uji**: Username `admin` dan password `adminrootpassword`.
+- **Prosedur Pengujian**:
+  1. Pada form pembuatan akun admin di `https://localhost`, isi username dengan `admin`.
+  2. Isi password dengan `adminrootpassword`.
+  3. Klik tombol biru **Install** (atau **Finish setup**).
+  4. Tunggu beberapa saat hingga proses inisialisasi selesai dan dashboard utama Nextcloud termuat.
+- **Output yang Diharapkan**: Akun administrator berhasil dibuat. Halaman beranda Admin terbuka. Di pojok kanan atas antarmuka, tombol avatar dan akses menu *Settings* untuk konfigurasi sistem global terlihat aktif.
 - **Hasil Pengujian**: **SUKSES**
-- **Analisis Rekayasa Teknis**:   Berdasarkan tampilan dashboard Nextcloud pada gambar berikut:   ![Bukti Pengujian Langkah 5 - Login Administrator Nextcloud](img/langkah2.2.png)   Pengisian formulir inisialisasi memicu penulisan tabel skema relasional Nextcloud pada MariaDB database. Nextcloud secara dinamis menyusun tabel-tabel data penting seperti tabel otentikasi user, caching berkas, data log, dan konfigurasi plugin. Kredensial akun `admin` disalin ke tabel `oc_users` secara aman, di mana kata sandi `adminrootpassword` di-hash menggunakan algoritma satu arah bcrypt dengan nilai salt dinamis untuk mencegah dekripsi kata sandi. Sesi login admin disimpan pada Redis cache terpusat.
-  
-  Nextcloud juga berhasil menginisialisasi folder template awal dan mengirimkan file biner tersebut ke kontainer penyimpanan MinIO via API S3, membuktikan fungsionalitas primary storage berjalan lancar. Avatar admin di kanan atas menampilkan menu administrasi global, memverifikasi previlese administrator tertinggi aktif.
-
-  Token autentikasi session admin dipertahankan di Redis cache menggunakan skema penamaan hash terenkripsi. Hal ini menghindari query pencarian user berulang kali ke database MariaDB pada setiap reload halaman, mempercepat rendering dashboard di browser.
+- **Analisis Rekayasa Teknis**:
+  Berdasarkan gambar tangkapan layar browser di atas, halaman **Dashboard Nextcloud** berhasil dimuat dengan sempurna, menampilkan ucapan sapaan "*Good morning*" yang menandakan proses instalasi dan login administrator telah berhasil dilakukan. URL pada *address bar* menunjukkan `https://localhost/apps/dashboard/`, membuktikan bahwa koneksi HTTPS melalui HAProxy Load Balancer berfungsi dengan baik dan pengguna telah berhasil diarahkan ke halaman beranda utama setelah login. Widget **Recommended files** menampilkan folder "*Templates*" yang merupakan folder bawaan (*default*) yang dibuat otomatis oleh Nextcloud saat inisialisasi akun administrator pertama kali. Keberadaan folder ini mengkonfirmasi bahwa koneksi ke **MinIO Object Storage** (S3 API) telah berhasil terhubung dan *primary storage* berfungsi normal. Ikon avatar pengguna terlihat aktif di pojok kanan atas antarmuka, menandakan sesi login tersimpan dengan benar di **Redis Cache** dan cookie `SERVERID` dari HAProxy telah disisipkan pada browser. Secara keseluruhan, alur autentikasi dari *Browser* → *HAProxy (SSL Termination)* → *Nextcloud App* → *MariaDB (validasi kredensial)* → *Redis (penyimpanan sesi)* telah berjalan mulus tanpa error.
 
 ---
 
 #### Pengujian Langkah 6: Pengujian Pembuatan User Baru dan Grup
-- **Tujuan Pengujian**: Memverifikasi kemampuan administrator untuk mendaftarkan akun pengguna baru, mengelompokkan mereka ke dalam grup departemen (`Engineer`, `Finance`, `HRD Manager`, `Developer`, `Manager`), dan menetapkan kebijakan kuota disk penyimpanan secara granular.
-- **Desain Langkah**: Mendaftarkan 5 akun user baru dengan parameter grup dan kapasitas kuota disk yang berbeda melalui panel manajemen pengguna Nextcloud.
-- **Input Uji**:
-  - User 1: `engineer1`, Group `Engineer`, Quota `10 GB`
-  - User 2: `finance1`, Group `Finance`, Quota `5 GB`
-  - User 3: `hrd1`, Group `HRD Manager`, Quota `15 GB`
-  - User 4: `developer1`, Group `Developer`, Quota `20 GB`
-  - User 5: `manager1`, Group `Manager`, Quota `25 GB`
-- **Prosedur Langkah Pengujian**:   Login sebagai admin, navigasi ke menu avatar kanan atas lalu klik *Users*. Administrator mengklik tombol *New user*, mengisi form nama, kata sandi, grup divisi, dan alokasi kuota disk untuk masing-masing ke-5 pengguna secara bergantian, lalu mengklik simpan.
-- **Output yang Diharapkan**: Kelima akun pengguna terdaftar dengan sukses di database, tergabung dalam grup divisi masing-masing, dan menampilkan alokasi batas kuota yang sesuai di daftar manajemen user.
-- **Hasil Pengujian**: **SUKSES**
-- **Analisis Rekayasa Teknis**:   Berdasarkan panel pengguna Nextcloud pada gambar berikut:   ![Bukti Pengujian Langkah 6 - Manajemen User dan Grup](img/langkah2.3.png)   Proses pembuatan pengguna baru memicu pengiriman kueri SQL `INSERT` dari kontainer Nextcloud ke database MariaDB. Data akun disimpan di tabel `oc_users`, sedangkan pemetaan grup disimpan di tabel `oc_group_user`, dan kuota teralokasi dicatat di tabel `oc_preferences`.
-  
-  Mekanisme pembatasan kuota disk ini bersifat dinamis. Ketika pengguna melakukan pengunggahan berkas, Nextcloud akan menghitung akumulasi total kapasitas file biner yang terdaftar di database untuk user tersebut, lalu membandingkannya dengan limit kuota di tabel preferensi sebelum mengizinkan stream upload ke MinIO. Ini mengisolasi konsumsi resource penyimpanan antar divisi kerja secara granular.
 
-  Kebijakan alokasi kuota disimpan di MariaDB menggunakan format byte representatif, yang dikonversi Nextcloud Core saat merender kapasitas disk di UI user reguler (contoh: kuota 10 GB disimpan sebagai `10737418240` bytes).
+##### Pembuatan & Konfigurasi Berkas
+Untuk melakukan langkah ini, silakan buat berkas-berkas konfigurasi berikut:
+
+Buat berkas **`ansible/roles/minio.yml`** lalu salin kode berikut ke dalamnya:
+```yaml
+---
+- name: 1. Buat direktori penyimpanan persisten MinIO Object Storage
+  file:
+    path: "{{ project_root }}/minio"
+    state: directory
+    owner: root
+    group: root
+    mode: '0777'
+```
+
+##### Tangkapan Layar Pengujian
+![Bukti Pengujian Langkah 6 - Manajemen User dan Grup](img/langkah2.3.png)
+
+##### Prosedur & Analisis Pengujian
+- **Tujuan Pengujian**: Memastikan Administrator dapat menambahkan akun pengguna baru, membuat dan memasukkannya ke dalam grup tertentu (`Engineer`, `Finance`, `HRD Manager`, `Developer`, `Manager`), serta menyetel kuota penyimpanan data sesuai kebijakan yang dirancang.
+- **Desain Langkah**: Mendaftarkan 5 akun user baru dengan parameter grup dan kapasitas kuota disk yang berbeda melalui panel manajemen pengguna Nextcloud.
+- **Input Uji**: Data user baru:
+  - User 1: username `engineer1`, password `Eng!neer@2026Secure`, group `Engineer`, quota `10 GB`
+  - User 2: username `finance1`, password `F1nance@2026Secure`, group `Finance`, quota `5 GB`
+  - User 3: username `hrd1`, password `Hrd!Manager@2026Secure`, group `HRD Manager`, quota `15 GB`
+  - User 4: username `developer1`, password `Dev!eloper@2026Secure`, group `Developer`, quota `20 GB`
+  - User 5: username `manager1`, password `Man!ager@2026Secure`, group `Manager`, quota `25 GB`
+- **Prosedur Pengujian**:
+  1. Login menggunakan akun `admin` di `https://localhost`.
+  2. Buka menu avatar di pojok kanan atas, lalu klik **Users**.
+  3. Klik tombol **New user**.
+  4. Isi form: Username `engineer1`, Password `Eng!neer@2026Secure`, pilih/buat Group `Engineer`, dan pilih Quota `10 GB`.
+  5. Klik tombol **Add new account** untuk menyimpan.
+  6. Ulangi langkah 3-5 untuk user-user berikutnya dengan password, group, dan quota masing-masing.
+  7. Amati daftar user yang muncul pada halaman manajemen pengguna.
+- **Output yang Diharapkan**: Kelima akun terdaftar dalam sistem dan muncul di daftar user masing-masing grup dengan alokasi kuota penyimpanan yang sesuai (10 GB, 5 GB, 15 GB, 20 GB, dan 25 GB).
+- **Hasil Pengujian**: **SUKSES**
+- **Analisis Rekayasa Teknis**:
+  Berdasarkan gambar tangkapan layar halaman manajemen user Nextcloud di atas, terdapat tepat **6 akun** yang terdaftar dalam sistem: `admin`, `engineer1`, `finance1`, `hrd1`, `developer1`, dan `manager1`, membuktikan bahwa proses pembuatan user baru melalui panel administrasi Nextcloud berhasil dilakukan. Akun `engineer1` masuk ke grup **Engineer** kuota **10 GB**, `finance1` ke grup **Finance** kuota **5 GB**, `hrd1` ke grup **HRD Manager** kuota **15 GB**, `developer1` ke grup **Developer** kuota **20 GB**, dan `manager1` ke grup **Manager** kuota **25 GB** (0 B used). Di panel navigasi kiri, grup-grup baru terlihat aktif. Nextcloud berhasil mengirimkan kueri `INSERT` ke MariaDB untuk mendaftarkan kelima akun baru beserta metadata grup dan kuotanya. Pembatasan kuota disk akan dibaca secara dinamis sebelum proses upload file di masa mendatang.
 
 ---
 
 #### Pengujian Langkah 7: Pengujian Login User Biasa
-- **Tujuan Pengujian**: Memverifikasi pembatasan hak akses berbasis peran (*Role-Based Access Control*) bekerja dengan benar, di mana pengguna reguler (non-admin) dapat login ke dashboard personal mereka yang terisolasi dan tidak diizinkan mengakses menu pengaturan global.
-- **Desain Langkah**: Melakukan pengujian login menggunakan akun pengguna reguler `engineer1` dan `finance1` secara bergantian pada tab browser terpisah.
-- **Input Uji**: Username `engineer1` (password: `Eng!neer@2026Secure`) dan username `finance1` (password: `F1nance@2026Secure`).
-- **Prosedur Langkah Pengujian**:   Administrator melakukan logout dari akun admin, kemudian masuk ke halaman login Nextcloud. Administrator memasukkan username `engineer1` beserta passwordnya, lalu memeriksa tampilan menu navigasi. Administrator mengulangi proses login untuk akun `finance1`.
-- **Output yang Diharapkan**: Login berhasil dilakukan. Dashboard personal pengguna reguler terbuka. Menu opsi administratif seperti *Users* dan *Administration Settings* **tidak ditampilkan** pada menu avatar pengguna biasa di pojok kanan atas.
-- **Hasil Pengujian**: **SUKSES**
-- **Analisis Rekayasa Teknis**:   Berdasarkan tangkapan layar antarmuka pengguna pada gambar berikut:   ![Bukti Pengujian Langkah 7a - Login User Biasa engineer1](img/langkah2.4a.png)   ![Bukti Pengujian Langkah 7b - Login User Biasa finance1](img/langkah2.4b.png)   Keberhasilan login reguler memvalidasi pembatasan akses keamanan internal Nextcloud Core. Saat pengguna login, kueri verifikasi kredensial dikirim ke database MariaDB. Setelah hash kata sandi terverifikasi cocok, Nextcloud membuat token sesi login baru dan menulisnya ke Redis cache.
-  
-  Sistem Nextcloud secara dinamis memeriksa tingkat peran pengguna (*user role*). Karena akun `engineer1` dan `finance1` tidak tergabung dalam grup sistem `admin` di database, Nextcloud memblokir rendering komponen administratif (*Users* and *Administration Settings*) di antarmuka grafis browser klien, menjamin prinsip keamanan hak istimewa terendah (*Principle of Least Privilege*). Folder skeleton default juga secara sukses dibuat di Object Storage backend MinIO khusus untuk ruang simpan data pribadi pengguna tersebut.
 
-  Pemisahan ruang simpan ini dijamin oleh database MariaDB yang mencatat relasi kepemilikan file. User `finance1` hanya dapat membaca folder logikal miliknya sendiri, meniadakan celah kebocoran dokumen lintas divisi organisasi.
+##### Pembuatan & Konfigurasi Berkas
+Konfigurasi ini tidak memerlukan pembuatan berkas baru secara manual karena dikelola secara logic dan tersimpan di database MariaDB oleh Nextcloud saat penambahan user. Namun, penataan trusted domains dan gateway load balancing memfasilitasi kelancaran login user.
+
+##### Tangkapan Layar Pengujian
+![Bukti Pengujian Langkah 7a - Login User Biasa engineer1](img/langkah2.4a.png)
+![Bukti Pengujian Langkah 7b - Login User Biasa finance1](img/langkah2.4b.png)
+
+##### Prosedur & Analisis Pengujian
+- **Tujuan Pengujian**: Memverifikasi pengguna non-admin (*regular user*) dapat login dan diarahkan ke lingkungan penyimpanan file yang terisolasi dari administrator. Menu administrasi global tidak boleh tampil bagi user biasa.
+- **Desain Langkah**: Melakukan pengujian login menggunakan akun pengguna reguler `engineer1` dan `finance1` secara bergantian pada tab browser terpisah.
+- **Input Uji**: Kredensial akun `engineer1` dan `finance1`.
+- **Prosedur Pengujian**:
+  1. Klik avatar di pojok kanan atas, lalu klik **Log out** untuk keluar dari akun Admin.
+  2. Pada form login Nextcloud di `https://localhost`, masukkan username `engineer1` dan password `Eng!neer@2026Secure`.
+  3. Klik tombol **Log in** dan amati tampilan dashboard serta navigasi yang tersedia.
+  4. Logout, lalu ulangi langkah 2-3 untuk user `finance1` dengan password `F1nance@2026Secure`.
+- **Output yang Diharapkan**: Dashboard pengguna biasa terbuka dengan ucapan sapaan. Menu administrasi global (seperti *Users*, *Administration Settings*) **tidak ditampilkan** di bilah navigasi, membuktikan pembatasan hak akses berbasis peran pengguna (*user role*).
+- **Hasil Pengujian**: **SUKSES**
+- **Analisis Rekayasa Teknis**:
+  Berdasarkan gambar tangkapan layar browser di atas, login sebagai user **engineer1** dan **finance1** berhasil dilakukan. Dashboard pengguna biasa memuat widget **Recommended files** yang berisi file-file bawaan. Pada menu dropdown pengguna, **tidak terdapat** opsi *Users* maupun *Administration Settings* — hanya tersedia menu personal seperti *Settings*, *Appearance and accessibility*, dan *Log out*. Hal ini membuktikan bahwa Nextcloud berhasil membatasi hak akses berdasarkan tingkat peran pengguna (*user role*). Sistem Nextcloud secara dinamis memeriksa tingkat peran pengguna (*user role*). Karena akun `engineer1` dan `finance1` tidak tergabung dalam grup sistem `admin` di database, Nextcloud memblokir rendering komponen administratif di antarmuka grafis browser klien, menjamin prinsip keamanan hak istimewa terendah (*Principle of Least Privilege*). Folder skeleton default juga secara sukses dibuat di Object Storage backend MinIO khusus untuk ruang simpan data pribadi pengguna tersebut.
 
 ---
 
 #### Pengujian Langkah 8: Pengujian Upload File
-- **Tujuan Pengujian**: Memverifikasi fungsionalitas pengunggahan file biner dari komputer lokal klien ke server Nextcloud, memastikan file disimpan secara stateless ke Object Storage MinIO menggunakan panggilan API S3, serta memastikan kapasitas penggunaan kuota penyimpanan berkurang secara proporsional.
+
+##### Pembuatan & Konfigurasi Berkas
+Konfigurasi ini tidak memerlukan pembuatan berkas baru secara manual karena didefinisikan secara deklaratif di parameter `OBJECTSTORE_S3_HOST` pada berkas `docker-compose.yml` untuk memetakan primary storage Nextcloud secara langsung ke bucket MinIO via API S3 di port 9000 target.
+
+##### Tangkapan Layar Pengujian
+![Bukti Pengujian Langkah 8a - Upload File](img/langkah2.5a.png)
+![Bukti Pengujian Langkah 8b - MinIO Bucket](img/langkah2.5b.png)
+
+##### Prosedur & Analisis Pengujian
+- **Tujuan Pengujian**: Memverifikasi bahwa file yang diunggah pengguna berhasil disimpan secara *stateless* ke dalam bucket MinIO Object Storage menggunakan API S3, serta kuota penyimpanan berkurang sesuai ukuran file.
 - **Desain Langkah**: Mengunggah berkas teks dari Windows host ke Nextcloud, kemudian memantau keberadaan objek fisik di dalam bucket MinIO Console.
-- **Input Uji**: Berkas teks bernama `Laporan_Kelistrikan1.txt` berukuran sekitar 59.6 MB.
-- **Prosedur Langkah Pengujian**:   Login sebagai user `engineer1`, buka aplikasi File pada panel navigasi kiri Nextcloud. Administrator mengklik tombol tambah (+), memilih *Upload file*, lalu memilih file `Laporan_Kelistrikan1.txt`. Tunggu hingga indikator pengunggahan mencapai 100%. Setelah selesai, administrator membuka dashboard admin MinIO Console di browser pada port `9001` untuk mencari keberadaan objek biner baru.
-- **Output yang Diharapkan**: Berkas berhasil diunggah dan muncul di antarmuka Nextcloud. Indikator kapasitas disk akun `engineer1` bertambah menjadi 59.6 MB terpakai. Di konsol MinIO, objek biner baru berformat Nextcloud terkonfirmasi terbuat di dalam bucket `nextcloud`.
+- **Input Uji**: File dokumen `Laporan_Kelistrikan1.txt` berukuran sekitar 59.6 MB.
+- **Prosedur Pengujian**:
+  1. Login sebagai `engineer1` di `https://localhost`.
+  2. Klik ikon **(+)** di panel navigasi Nextcloud dan pilih **Upload file**.
+  3. Pilih file `Laporan_Kelistrikan1.txt` dari komputer lokal.
+  4. Tunggu progres pengunggahan selesai hingga 100%.
+  5. Amati apakah file muncul di daftar berkas Nextcloud dan cek informasi kuota penyimpanan di pojok kiri bawah.
+  6. Buka MinIO Console di `http://localhost:9001` (login: `minioadmin` / `minioadminpassword`) untuk memverifikasi objek baru terbuat di bucket `nextcloud`.
+- **Output yang Diharapkan**: Berkas muncul di antarmuka file Nextcloud. Kuota penyimpanan akun `engineer1` berkurang sesuai ukuran file yang diunggah. Pada MinIO Console, objek baru terkonfirmasi tersimpan di dalam bucket `nextcloud`.
 - **Hasil Pengujian**: **SUKSES**
-- **Analisis Rekayasa Teknis**:   Proses pengunggahan berkas teks `Laporan_Kelistrikan1.txt` memicu serangkaian transaksi data di tingkat backend. Pertama, Nextcloud melakukan kueri ke MariaDB untuk mendaftarkan metadata berkas (seperti nama berkas asli, mime-type, kepemilikan user, dan ID unik). Kedua, Nextcloud mengirimkan request stream biner secara langsung ke Object Storage MinIO (`minio-storage:9000`) melalui protokol API S3 menggunakan metode *Multipart Upload* untuk membagi file berukuran 59.6 MB menjadi bagian-bagian kecil yang ditransmisikan secara paralel.
-  
-  MinIO Console mengonfirmasi objek baru disimpan dengan format penamaan `urn:oid:213`. Objek ini tidak disimpan sebagai file teks biasa melainkan dalam struktur blok objek mentah terenkripsi yang diidentifikasi oleh kunci pengenal unik Nextcloud. Selama proses pengunggahan berlangsung, status session lock dipertahankan di Redis cache untuk mencegah pengguna lain mengedit berkas yang sama secara bersamaan, menjamin keutuhan data (*data integrity*). Kapasitas penggunaan kuota disk pada profil `engineer1` terhitung berkurang dari batas maksimal 10 GB menjadi 59.6 MB.
-
-  Pemisahan data biner dari server aplikasi Nextcloud ini terbukti andal. Selama proses upload biner via API S3 ke MinIO, disk I/O pada kontainer `nextcloud-app-1` tetap berada di level minimal karena file hanya dilewatkan sebagai buffer stream di memori RAM, membebaskan resource server Nextcloud untuk memproses request pengguna lainnya secara responsif.
-
-  Dari sisi database MariaDB, kueri yang dieksekusi Nextcloud memperbarui tabel `oc_filecache` dengan menyisipkan detail metadata file yang baru diunggah. Metadata ini memetakan jalur file logikal (`files/Laporan_Kelistrikan1.txt`) ke ID fisik objek (`213`) di dalam MinIO bucket, memfasilitasi proses penarikan file kembali saat diakses klien.
-
-  Selain itu, dari perspektif protokol HTTP, browser klien mengirimkan data menggunakan metode POST dengan tipe konten `multipart/form-data`. HAProxy bertindak sebagai perantara yang menampung buffer data sebelum dialirkan ke port 80 Apache backend Nextcloud. Penalaan buffer koneksi pada HAProxy mencegah terjadinya pemutusan koneksi di tengah jalan akibat kegagalan sinkronisasi kecepatan baca-tulis disk host Windows.
+- **Analisis Rekayasa Teknis**:
+  Proses pengunggahan berkas teks `Laporan_Kelistrikan1.txt` memicu serangkaian transaksi data di tingkat backend. Pertama, Nextcloud melakukan kueri ke MariaDB untuk mendaftarkan metadata berkas (seperti nama berkas asli, mime-type, kepemilikan user, dan ID unik). Kedua, Nextcloud mengirimkan request stream biner secara langsung ke Object Storage MinIO (`minio-storage:9000`) melalui protokol API S3 menggunakan metode *Multipart Upload* untuk membagi file berukuran 59.6 MB menjadi bagian-bagian kecil yang ditransmisikan secara paralel. MinIO Console mengonfirmasi objek baru disimpan dengan format penamaan `urn:oid:213`. Objek ini tidak disimpan sebagai file teks biasa melainkan dalam struktur blok objek mentah terenkripsi yang diidentifikasi oleh kunci pengenal unik Nextcloud. Selama proses pengunggahan berlangsung, status session lock dipertahankan di Redis cache untuk mencegah pengguna lain mengedit berkas yang sama secara bersamaan, menjamin keutuhan data (*data integrity*). Kapasitas penggunaan kuota disk pada profil `engineer1` terhitung berkurang dari batas maksimal 10 GB menjadi 59.6 MB. Pemisahan data biner dari server aplikasi Nextcloud ini terbukti andal. Selama proses upload biner via API S3 ke MinIO, disk I/O pada kontainer `nextcloud-app-1` tetap berada di level minimal karena file hanya dilewatkan sebagai buffer stream di memori RAM, membebaskan resource server Nextcloud untuk memproses request pengguna lainnya secara responsif. Dari sisi database MariaDB, kueri yang dieksekusi Nextcloud memperbarui tabel `oc_filecache` dengan menyisipkan detail metadata file yang baru diunggah. Metadata ini memetakan jalur file logikal ke ID fisik objek (`213`) di dalam MinIO bucket, memfasilitasi proses penarikan file kembali saat diakses klien. Selain itu, dari perspektif protokol HTTP, browser klien mengirimkan data menggunakan metode POST dengan tipe konten `multipart/form-data`. HAProxy bertindak sebagai perantara yang menampung buffer data sebelum dialirkan ke port 80 Apache backend Nextcloud. Penalaan buffer koneksi pada HAProxy mencegah terjadinya pemutusan koneksi di tengah jalan akibat kegagalan sinkronisasi kecepatan baca-tulis disk host Windows.
 
 ---
 
 #### Pengujian Langkah 9: Pengujian Berbagi Tautan Publik (External Share)
+
+##### Pembuatan & Konfigurasi Berkas
+Konfigurasi ini tidak memerlukan pembuatan berkas baru secara manual karena dikelola secara asinkron di database MariaDB oleh Nextcloud. Sistem pangkalan data MariaDB mendaftarkan share link baru pada tabel `oc_share` ketika link sharing publik diaktifkan oleh pengguna.
+
+##### Tangkapan Layar Pengujian
+![Bukti Pengujian Langkah 9a - Share Link](img/langkah2.6a.png)
+![Bukti Pengujian Langkah 9b - Guest View](img/langkah2.6b.png)
+
+##### Prosedur & Analisis Pengujian
 - **Tujuan Pengujian**: Memastikan fitur berbagi berkas secara eksternal (*public link sharing*) dapat berfungsi dengan baik melewati load balancer HAProxy, sehingga pengguna luar tanpa akun dapat mengakses file yang dibagikan secara langsung.
 - **Desain Langkah**: Membuat tautan publik pada berkas teks milik user `engineer1` dan membukanya di jendela browser rahasia (*Incognito*) tanpa autentikasi.
 - **Input Uji**: Opsi aktivasi *Share link* pada file `Laporan_Kelistrikan1.txt`.
-- **Prosedur Langkah Pengujian**:   Login sebagai `engineer1`, masuk ke menu berkas, lalu klik tombol *Share* di samping file `Laporan_Kelistrikan1.txt`. Administrator mencentang pilihan *Share link*, menyalin URL unik yang dibuat oleh Nextcloud, membuka jendela Incognito baru di browser Chrome/Edge, menempelkan URL tersebut di address bar, lalu menekan Enter.
+- **Prosedur Pengujian**:
+  1. Login sebagai `engineer1`, masuk ke menu berkas, lalu klik tombol *Share* di samping file `Laporan_Kelistrikan1.txt`.
+  2. Administrator mencentang pilihan *Share link*, menyalin URL unik yang dibuat oleh Nextcloud.
+  3. Membuka jendela Incognito baru di browser Chrome/Edge, menempelkan URL tersebut di address bar, lalu menekan Enter.
 - **Output yang Diharapkan**: Halaman pembagian file Nextcloud terbuka secara langsung tanpa menampilkan form login. Isi konten teks dokumen `Laporan_Kelistrikan1.txt` dapat dibaca atau diunduh oleh pihak eksternal.
 - **Hasil Pengujian**: **SUKSES**
-- **Analisis Rekayasa Teknis**:   Ketika browser memproses URL publik `https://localhost/s/jqFrrhAFiCXCRWn`, request HTTPS port 443 diterima pertama kali oleh load balancer HAProxy. HAProxy melakukan terminasi SSL menggunakan sertifikat `haproxy.pem` dan mengalihkan trafik HTTP biasa ke server backend Nextcloud. Nextcloud mendeteksi token token enkripsi `/s/jqFrrhAFiCXCRWn` pada tabel pencarian data sharing di database MariaDB (`mariadb-db`).
-  
-  Setelah token tersebut terkonfirmasi valid dan memiliki flag *public access*, Nextcloud secara transparan mengirimkan request data biner file terkait ke Object Storage MinIO. MinIO mengirimkan stream data biner tersebut kembali ke Nextcloud, yang selanjutnya merendernya dalam bentuk teks biasa di halaman web eksternal browser guest. Sistem otentikasi Nextcloud melewati (*bypass*) pemeriksaan kredensial session login biasa untuk request dengan format path sharing eksternal ini, mengizinkan akses tamu non-login dengan aman tanpa membocorkan file lain yang berada di dalam folder yang sama.
-
-  Langkah ini membuktikan keamanan perutean external share link Nextcloud. Mekanisme token hashing yang digunakan Nextcloud untuk memetakan URL publik ke database MariaDB mencegah serangan tebakan URL (*URL brute-forcing*), karena token yang dihasilkan bersifat acak dan unik secara kriptografi.
-
-  Setiap request pembagian berkas juga tercatat di tabel `oc_share` MariaDB, menyimpan informasi tanggal pembuatan tautan, batas kedaluwarsa jika disetel, dan permissions (apakah tamu diizinkan mengunduh saja atau diizinkan mengunggah file baru ke folder tersebut).
-
-  Request HTTP dari browser klien tamu diproses secara asinkron oleh web server Apache Nextcloud, di mana respons data streaming ditransmisikan menggunakan kompresi GZIP bawaan untuk meminimalkan beban lalu lintas jaringan virtual bridge Docker.
+- **Analisis Rekayasa Teknis**:
+  Ketika browser memproses URL publik `https://localhost/s/jqFrrhAFiCXCRWn`, request HTTPS port 443 diterima pertama kali oleh load balancer HAProxy. HAProxy melakukan terminasi SSL menggunakan sertifikat `haproxy.pem` dan mengalihkan trafik HTTP biasa ke server backend Nextcloud. Nextcloud mendeteksi token token enkripsi `/s/jqFrrhAFiCXCRWn` pada tabel pencarian data sharing di database MariaDB (`mariadb-db`). Setelah token tersebut terkonfirmasi valid dan memiliki flag *public access*, Nextcloud secara transparan mengirimkan request data biner file terkait ke Object Storage MinIO. MinIO mengirimkan stream data biner tersebut kembali ke Nextcloud, yang selanjutnya merendernya dalam bentuk teks biasa di halaman web eksternal browser guest. Sistem otentikasi Nextcloud melewati (*bypass*) pemeriksaan kredensial session login biasa untuk request dengan format path sharing eksternal ini, mengizinkan akses tamu non-login dengan aman tanpa membocorkan file lain yang berada di dalam folder yang sama. Sinyal ini membuktikan keamanan perutean external share link Nextcloud. Mekanisme token hashing yang digunakan Nextcloud untuk memetakan URL publik ke database MariaDB mencegah serangan tebakan URL (*URL brute-forcing*), karena token yang dihasilkan bersifat acak dan unik secara kriptografi. Setiap request pembagian berkas juga tercatat di tabel `oc_share` MariaDB, menyimpan informasi tanggal pembuatan tautan, batas kedaluwarsa jika disetel, dan permissions (apakah tamu diizinkan mengunduh saja atau diizinkan mengunggah file baru ke folder tersebut). Request HTTP dari browser klien tamu diproses secara asinkron oleh web server Apache Nextcloud, di mana respons data streaming ditransmisikan menggunakan kompresi GZIP bawaan untuk meminimalkan beban lalu lintas jaringan virtual bridge Docker.
 
 ---
 
 #### Pengujian Langkah 10: Pengujian Hapus File
+
+##### Pembuatan & Konfigurasi Berkas
+Konfigurasi ini tidak memerlukan pembuatan berkas baru secara manual karena berjalan di tingkat server logika Nextcloud. Penanganan penghapusan berkas diatur agar secara otomatis mengirimkan panggilan DELETE API S3 ke host kontainer `minio-storage` target.
+
+##### Tangkapan Layar Pengujian
+![Bukti Pengujian Langkah 10 - Hapus Berkas](img/langkah2.7a.png)
+
+##### Prosedur & Analisis Pengujian
 - **Tujuan Pengujian**: Memverifikasi fungsionalitas penghapusan berkas dari antarmuka Nextcloud dan memastikan bahwa proses penghapusan tersebut secara sinkron menghapus objek biner fisik yang disimpan di backend MinIO Object Storage.
 - **Desain Langkah**: Menghapus file teks yang sebelumnya diunggah dari akun user `engineer1` dan memeriksa status objek tersebut di dashboard administrator MinIO.
 - **Input Uji**: Perintah *Delete file* pada dokumen `Laporan_Kelistrikan1.txt` di panel file Nextcloud.
-- **Prosedur Langkah Pengujian**:   Login sebagai `engineer1`, arahkan kursor ke file `Laporan_Kelistrikan1.txt`, klik ikon tiga titik opsi di samping kanan file, lalu pilih *Delete file*. Administrator kemudian membuka tab browser baru, login ke dashboard MinIO Console, navigasi ke bucket `nextcloud`, lalu melakukan pencarian ID objek biner `urn:oid:213`.
+- **Prosedur Pengujian**:
+  1. Login sebagai `engineer1`, arahkan kursor ke file `Laporan_Kelistrikan1.txt`, klik ikon tiga titik opsi di samping kanan file, lalu pilih **Delete file**.
+  2. Buka tab browser baru, login ke dashboard MinIO Console, navigasi ke bucket `nextcloud`, lalu lakukan pencarian ID objek biner `urn:oid:213`.
 - **Output yang Diharapkan**: Dokumen menghilang dari daftar berkas aktif Nextcloud. Pada dashboard MinIO Console, objek biner `urn:oid:213` terhapus dari bucket utama.
 - **Hasil Pengujian**: **SUKSES**
-- **Analisis Rekayasa Teknis**:   Aksi hapus file memicu pengiriman kueri modifikasi database relasional MariaDB. Pertama, Nextcloud mengubah metadata file pada tabel `oc_filecache` dengan menandai berkas `Laporan_Kelistrikan1.txt` sebagai berkas terhapus secara logikal (memindahkannya ke trash bin internal). Kedua, Nextcloud mengirimkan request penghapusan fisik (*DELETE request*) menggunakan API S3 ke host `minio-storage:9000`.
-  
-  MinIO menerima request tersebut, memproses instruksi penghapusan data, dan mengembalikan konfirmasi status sukses `204 No Content`. Akibatnya, saat administrator melakukan pencarian terhadap objek biner `urn:oid:213` di bucket `nextcloud` melalui konsol administrator MinIO, hasil pencarian menunjukkan status kosong `0/0 objects`. Ini membuktikan integrasi penyimpanan terdistribusi stateless terjalin harmonis di mana penghapusan data logic pada aplikasi diiringi oleh pembersihan media penyimpanan biner di storage secara sinkron.
-
-  Mekanisme sinkronisasi penghapusan file ini sangat penting untuk mencegah terjadinya penumpukan file yatim (*orphan files*) pada Object Storage MinIO. Tanpa adanya sinkronisasi API S3 DELETE, kapasitas disk MinIO akan terus membesar meskipun pengguna telah menghapus file secara visual di Nextcloud.
-
-  Nextcloud juga menyediakan fitur pembersihan folder sampah otomatis (*automatic trashbin cleaning*) di mana berkas pada tabel metadata `oc_trashbin` yang melampaui usia retensi tertentu (misalnya 30 hari) akan dihapus secara permanen untuk membebaskan ruang penyimpanan fisik organisasi.
-
-  Dari perspektif integritas database, penghapusan ini dijalankan dalam satu blok transaksi terisolasi (*database transaction isolation level*) untuk mencegah anomali inkonsistensi status file jika kueri API S3 mengalami timeout di jaringan.
+- **Analisis Rekayasa Teknis**:
+  Aksi hapus file memicu pengiriman kueri modifikasi database relasional MariaDB. Pertama, Nextcloud mengubah metadata file pada tabel `oc_filecache` dengan menandai berkas `Laporan_Kelistrikan1.txt` sebagai berkas terhapus secara logikal (memindahkannya ke trash bin internal). Kedua, Nextcloud mengirimkan request penghapusan fisik (*DELETE request*) menggunakan API S3 ke host `minio-storage:9000`. MinIO menerima request tersebut, memproses instruksi penghapusan data, dan mengembalikan konfirmasi status sukses `204 No Content`. Akibatnya, saat administrator melakukan pencarian terhadap objek biner `urn:oid:213` di bucket `nextcloud` melalui konsol administrator MinIO, hasil pencarian menunjukkan status kosong `0/0 objects`. Ini membuktikan integrasi penyimpanan terdistribusi stateless terjalin harmonis di mana penghapusan data logic pada aplikasi diiringi oleh pembersihan media penyimpanan biner di storage secara sinkron. Mekanisme sinkronisasi penghapusan file ini sangat penting untuk mencegah terjadinya penumpukan file yatim (*orphan files*) pada Object Storage MinIO. Tanpa adanya sinkronisasi API S3 DELETE, kapasitas disk MinIO akan terus membesar meskipun pengguna telah menghapus file secara visual di Nextcloud. Nextcloud juga menyediakan fitur pembersihan folder sampah otomatis (*automatic trashbin cleaning*) di mana berkas pada tabel metadata `oc_trashbin` yang melampaui usia retensi tertentu (misalnya 30 hari) akan dihapus secara permanen untuk membebaskan ruang penyimpanan fisik organisasi. Dari perspektif integritas database, penghapusan ini dijalankan dalam satu blok transaksi terisolasi (*database transaction isolation level*) untuk mencegah anomali inkonsistensi status file jika kueri API S3 mengalami timeout di jaringan.
 
 ---
-
 
 ### BLOK 3: PENGUJIAN LOAD BALANCING DAN HIGH AVAILABILITY
 
 #### Pengujian Langkah 11: Pengujian Load Balancing
 
-- **Kode Konfigurasi & Implementasi**:
-  Berikut adalah tugas penyiapan load balancer dan konfigurasi utama `haproxy.cfg`:
-  - **`roles/loadbalancer.yml`**:
-    ```yaml
-    ---
+##### Pembuatan & Konfigurasi Berkas
+Untuk melakukan langkah ini, silakan buat berkas-berkas konfigurasi berikut:
+
+Buat berkas **`ansible/roles/loadbalancer.yml`** lalu salin kode berikut ke dalamnya:
+```yaml
+---
 - name: 1. Buat direktori konfigurasi HAProxy dan Nginx pada host target
   file:
     path: "{{ item }}"
@@ -953,10 +1036,11 @@ networks:
     owner: root
     group: root
     mode: '0644'
-    ```
-  - **`config/haproxy/haproxy.cfg`**:
-    ```haproxy
-    global
+```
+
+Buat berkas **`config/haproxy/haproxy.cfg`** lalu salin kode berikut ke dalamnya:
+```haproxy
+global
     log stdout format raw local0
     maxconn 4096
 
@@ -994,33 +1078,34 @@ listen stats
     stats refresh 5s
     stats auth admin:adminstats
     http-request use-service prometheus-exporter if { path /metrics }
-    ```
+```
 
+##### Tangkapan Layar Pengujian
+![Bukti Pengujian Langkah 11 - HAProxy Stats Report](img/langkah3.1.png)
+
+##### Prosedur & Analisis Pengujian
 - **Tujuan Pengujian**: Memastikan load balancer HAProxy aktif mendengarkan port 1936, menyajikan halaman monitoring statistik secara visual, dan memverifikasi bahwa ia berhasil mendeteksi kesehatan kedua kontainer Nextcloud (`app1` dan `app2`) dalam status aktif (*UP*).
 - **Desain Langkah**: Mengakses antarmuka visual HAProxy Stats Report menggunakan kredensial otentikasi dasar administrator yang telah dikonfigurasi.
 - **Input Uji**: URL `http://localhost:1936` beserta input username `admin` dan password `adminstats`.
-- **Prosedur Langkah Pengujian**:   Administrator membuka browser web, mengetikkan alamat `http://localhost:1936` pada address bar, lalu menekan Enter. Pada pop-up autentikasi dasar yang muncul, administrator memasukkan kredensial admin stats dan mengklik login. Administrator memeriksa baris tabel backend `nextcloud_backend`.
+- **Prosedur Pengujian**:
+  1. Administrator membuka browser web, mengetikkan alamat `http://localhost:1936` pada address bar, lalu menekan Enter.
+  2. Pada pop-up autentikasi dasar yang muncul, administrator memasukkan kredensial admin stats dan mengklik login.
+  3. Administrator memeriksa baris tabel backend `nextcloud_backend`.
 - **Output yang Diharapkan**: Halaman statistik HAProxy Stats Report berhasil ditampilkan. Pada bagian backend `nextcloud_backend`, baris server `app1` dan `app2` berwarna hijau dengan indikator status bertuliskan `UP`.
 - **Hasil Pengujian**: **SUKSES**
-- **Analisis Rekayasa Teknis**:   Halaman statistik HAProxy Stats Report menunjukkan indikator kesehatan server penyeimbang beban secara lengkap. HAProxy mendeteksi status keaktifan node `app1` (`nextcloud-app-1`) dan `app2` (`nextcloud-app-2`) melalui pemeriksaan TCP Layer 4 (*Layer 4 health checks*) secara aktif setiap 2000 milidetik (sesuai parameter default `check`).
-  
-  Health check sukses ditandai dengan label **L4OK** dalam waktu respons 0ms. Parameter `maxconn` backend membatasi penumpukan antrean koneksi per server. Status `UP` berwarna hijau menandakan kedua replika siap menerima trafik browser dan HAProxy akan mendistribusikan request secara Round Robin secara merata dengan bobot (*weight*) berimbang 1:1.
-
-  HAProxy secara efisien melacak statistik transfer data (*Bytes In / Bytes Out*), status HTTP respons (2xx, 3xx, 4xx, 5xx), serta waktu tunggu antrean (*Queue Time*). Informasi statistik ini disajikan dalam format visual interaktif yang membantu administrator sistem menganalisis pola trafik pengguna secara granular.
-
-  Di dalam tabel backend stats, terdapat parameter `sessions` yang mengindikasikan total koneksi yang saat ini dihubungkan ke masing-masing container. Keseimbangan jumlah session membuktikan load balancing Round Robin aktif membagi kerja secara proporsional.
-
-  Pemrosesan ini dipantau oleh thread tunggal HAProxy event loop yang sangat efisien, di mana metrik statistik diperbarui di memori secara atomic tanpa memicu lock overhead CPU.
+- **Analisis Rekayasa Teknis**:
+  Halaman statistik HAProxy Stats Report menunjukkan indikator kesehatan server penyeimbang beban secara lengkap. HAProxy mendeteksi status keaktifan node `app1` (`nextcloud-app-1`) dan `app2` (`nextcloud-app-2`) melalui pemeriksaan TCP Layer 4 (*Layer 4 health checks*) secara aktif setiap 2000 milidetik (sesuai parameter default `check`). Health check sukses ditandai dengan label **L4OK** dalam waktu respons 0ms. Parameter `maxconn` backend membatasi penumpukan antrean koneksi per server. Status `UP` berwarna hijau menandakan kedua replika siap menerima trafik browser dan HAProxy akan mendistribusikan request secara Round Robin secara merata dengan bobot (*weight*) berimbang 1:1. HAProxy secara efisien melacak statistik transfer data (*Bytes In / Bytes Out*), status HTTP respons (2xx, 3xx, 4xx, 5xx), serta waktu tunggu antrean (*Queue Time*). Informasi statistik ini disajikan dalam format visual interaktif yang membantu administrator sistem menganalisis pola trafik pengguna secara granular. Di dalam tabel backend stats, terdapat parameter `sessions` yang mengindikasikan total koneksi yang saat ini dihubungkan ke masing-masing container. Keseimbangan jumlah session membuktikan load balancing Round Robin aktif membagi kerja secara proporsional. Pemrosesan ini dipantau oleh thread tunggal HAProxy event loop yang sangat efisien, di mana metrik statistik diperbarui di memori secara atomic tanpa memicu lock overhead CPU.
 
 ---
 
 #### Pengujian Langkah 12: Pengujian Round Robin
 
-- **Kode Konfigurasi & Implementasi**:
-  Berikut adalah berkas konfigurasi Nginx alternatif (`nginx.conf`) untuk perbandingan load balancing:
-  - **`config/nginx/nginx.conf`**:
-    ```nginx
-    user  nginx;
+##### Pembuatan & Konfigurasi Berkas
+Untuk melakukan langkah ini, silakan buat berkas-berkas konfigurasi berikut:
+
+Buat berkas **`config/nginx/nginx.conf`** lalu salin kode berikut ke dalamnya:
+```nginx
+user  nginx;
 worker_processes  auto;
 
 error_log  /var/log/nginx/error.log notice;
@@ -1072,92 +1157,107 @@ http {
         }
     }
 }
-    ```
+```
 
+##### Tangkapan Layar Pengujian
+![Bukti Pengujian Langkah 12 - Round Robin](img/langkah3.2.png)
+
+##### Prosedur & Analisis Pengujian
 - **Tujuan Pengujian**: Memverifikasi bahwa load balancer HAProxy menerapkan algoritma Round Robin untuk mendistribusikan koneksi klien baru secara bergantian ke kontainer `nextcloud-app-1` dan `nextcloud-app-2` sebelum terikat oleh cookie sesi.
 - **Desain Langkah**: Mengakses halaman utama `https://localhost` secara berulang kali menggunakan jendela browser Incognito yang bersih dari cookie sesi, lalu memeriksa nilai cookie `SERVERID` yang disisipkan HAProxy.
 - **Input Uji**: Request koneksi baru ke `https://localhost` dari jendela browser Incognito yang terisolasi.
-- **Prosedur Langkah Pengujian**:   Administrator membuka jendela Incognito baru di browser, mengaktifkan panel Developer Tools (F12), lalu masuk ke tab *Application* -> *Cookies*. Administrator mengakses `https://localhost` and mencatat nilai cookie `SERVERID`. Administrator menutup jendela Incognito, membuka jendela Incognito baru, lalu mengulangi pengujian untuk melihat perubahan nilai cookie `SERVERID`.
+- **Prosedur Pengujian**:
+  1. Administrator membuka jendela Incognito baru di browser, mengaktifkan panel Developer Tools (F12).
+  2. Masuk ke tab **Application** -> **Cookies** -> `https://localhost`.
+  3. Administrator mengakses `https://localhost` dan mencatat nilai cookie `SERVERID`.
+  4. Administrator menutup jendela Incognito, membuka jendela Incognito baru, lalu mengulangi pengujian untuk melihat perubahan nilai cookie `SERVERID`.
 - **Output yang Diharapkan**: Nilai cookie `SERVERID` berganti secara bergantian antara `app1` dan `app2` pada setiap sesi Incognito baru yang dibuka.
 - **Hasil Pengujian**: **SUKSES**
-- **Analisis Rekayasa Teknis**:   Algoritma Round Robin membagi trafik klien baru secara rata berurutan. Saat browser klien pertama kali melakukan request koneksi tanpa cookie `SERVERID` (seperti saat membuka jendela Incognito baru), HAProxy mengarahkan request ke server `app1` dan menyisipkan header HTTP response `Set-Cookie: SERVERID=app1; path=/`. Ketika browser yang sama mengirim request berikutnya, browser menyertakan cookie `SERVERID=app1` tersebut. HAProxy membaca cookie ini dan langsung meneruskan koneksi ke `app1` tanpa memproses aturan Round Robin lagi (*Session Stickiness*).
-  
-  Proses penutupan seluruh jendela Incognito menghapus total penyimpanan cookie memori browser. Ketika jendela Incognito baru dibuka dan mengakses `https://localhost` kembali, request dikirim secara bersih tanpa cookie. HAProxy mendeteksi ketiadaan cookie, lalu menerapkan algoritma Round Robin untuk mengalihkan rute trafik ke server backend berikutnya (`app2`), serta memperbarui nilai cookie browser menjadi `SERVERID=app2`. Pergantian nilai cookie yang dinamis ini membuktikan keaktifan algoritma Round Robin dan stickiness cookie.
-
-  Mekanisme persistensi sesi ini sangat penting dalam menjaga performa server web. Dengan mengunci browser ke satu server backend yang sama, waktu respons pengunggahan file dan pemuatan dashboard akan berkurang karena server web dapat memanfaatkan cache lokal internal memori PHP untuk mempercepat rendering halaman.
-
-  Pengikatan session cookie `SERVERID` ditandai parameter `indirect nocache` pada konfigurasi HAProxy. Hal ini menginstruksikan HAProxy untuk tidak menyimpan berkas cache halaman dinamis di browser klien jika diakses melalui perantara backend yang berbeda, menghindari kebocoran data sesi antar pengguna.
-
-  Cookie persistensi ini disisipkan pada header respons HTTP menggunakan parameter HttpOnly dan Secure secara otomatis oleh HAProxy jika dideteksi koneksi TLS aktif, mencegah eksploitasi pencurian sesi melalui skrip cross-site scripting (XSS) di browser klien.
+- **Analisis Rekayasa Teknis**:
+  Algoritma Round Robin membagi trafik klien baru secara rata berurutan. Saat browser klien pertama kali melakukan request koneksi tanpa cookie `SERVERID` (seperti saat membuka jendela Incognito baru), HAProxy mengarahkan request ke server `app1` dan menyisipkan header HTTP response `Set-Cookie: SERVERID=app1; path=/`. Ketika browser yang sama mengirim request berikutnya, browser menyertakan cookie `SERVERID=app1` tersebut. HAProxy membaca cookie ini dan langsung meneruskan koneksi ke `app1` tanpa memproses aturan Round Robin lagi (*Session Stickiness*). Proses penutupan seluruh jendela Incognito menghapus total penyimpanan cookie memori browser. Ketika jendela Incognito baru dibuka dan mengakses `https://localhost` kembali, request dikirim secara bersih tanpa cookie. HAProxy mendeteksi ketiadaan cookie, lalu menerapkan algoritma Round Robin untuk mengalihkan rute trafik ke server backend berikutnya (`app2`), serta memperbarui nilai cookie browser menjadi `SERVERID=app2`. Pergantian nilai cookie yang dinamis ini membuktikan keaktifan algoritma Round Robin dan stickiness cookie. Mekanisme persistensi sesi ini sangat penting dalam menjaga performa server web. Dengan mengunci browser ke satu server backend yang sama, waktu respons pengunggahan file dan pemuatan dashboard akan berkurang karena server web dapat memanfaatkan cache lokal internal memori PHP untuk mempercepat rendering halaman. Cookie persistensi ini disisipkan pada header respons HTTP menggunakan parameter HttpOnly dan Secure secara otomatis oleh HAProxy jika dideteksi koneksi TLS aktif, mencegah eksploitasi pencurian sesi melalui skrip cross-site scripting (XSS) di browser klien.
 
 ---
 
 #### Pengujian Langkah 13: Pengujian Failover Container
+
+##### Pembuatan & Konfigurasi Berkas
+Konfigurasi ini tidak memerlukan pembuatan berkas baru secara manual karena didefinisikan secara deklaratif dalam aturan checks di `haproxy.cfg`. Aturan checks Layer 4 TCP mendeteksi status keaktifan node target setiap 2000 milidetik.
+
+##### Tangkapan Layar Pengujian
+![Bukti Pengujian Langkah 13 - Failover Container](img/langkah3.3.png)
+
+##### Prosedur & Analisis Pengujian
 - **Tujuan Pengujian**: Menguji kemampuan HAProxy untuk mendeteksi matinya kontainer aplikasi Nextcloud secara instan dan menghentikan pengiriman request ke kontainer yang down.
 - **Desain Langkah**: Mematikan paksa salah satu kontainer aplikasi Nextcloud.
 - **Input Uji**: Perintah CLI `docker stop nextcloud-app-1` (atau `docker compose stop nextcloud-app-1`).
-- **Prosedur Langkah Pengujian**:   Administrator membuka terminal WSL2, mengeksekusi perintah untuk mematikan kontainer `nextcloud-app-1`. Administrator segera membuka browser web pada halaman statistik HAProxy di port 1936, lalu mengamati perubahan warna dan status pada baris server `app1`.
+- **Prosedur Pengujian**:
+  1. Administrator membuka terminal WSL2, mengeksekusi perintah untuk mematikan kontainer `nextcloud-app-1`.
+  2. Administrator segera membuka browser web pada halaman statistik HAProxy di port 1936.
+  3. Mengamati perubahan warna dan status pada baris server `app1`.
 - **Output yang Diharapkan**: Status server `app1` di tabel backend HAProxy berubah dari hijau (`UP`) menjadi merah (`DOWN`) dalam waktu singkat (di bawah 3 detik).
 - **Hasil Pengujian**: **SUKSES**
-- **Analisis Rekayasa Teknis**:   Ketika kontainer `nextcloud-app-1` dimatikan paksa menggunakan perintah stop, port HTTP internal 80 kontainer tersebut tertutup secara instan. HAProxy yang mengirimkan health check TCP polling berkala gagal mendeteksi respons handshake `SYN-ACK` dari port target. Setelah health check mendeteksi kegagalan beruntun sebanyak 3 kali (sesuai parameter default `fall 3`), HAProxy secara otomatis menandai status server `app1` sebagai **DOWN** (merah tua).
-  
-  Keterangan log `LastChk` menampilkan pesan kegagalan koneksi **L4CON in 73ms** (Layer 4 Connection failed). Pintu alokasi trafik ke `app1` ditutup secara instan. Seluruh trafik klien aktif yang sebelumnya terikat cookie `SERVERID=app1` akan didegradasi status stickiness-nya dan HAProxy mengalihkan koneksinya secara paksa ke server backend sehat tersisa (`app2`), menghindari terjadinya error HTTP 503 Service Unavailable bagi pengguna akhir.
-
-  Kecepatan deteksi kegagalan HAProxy (di bawah 3 detik) dicapai berkat konfigurasi parameter `inter 2000` (polling setiap 2 detik) dan `fall 3`. Kecepatan failover ini sangat vital dalam langkah industri, karena meminimalkan jeda waktu gangguan layanan yang dapat menyebabkan putusnya koneksi upload data klien.
-
-  HAProxy juga merekam statistik jumlah server aktif backend (`Act = 1`), menandakan klaster backend saat ini berada dalam status terdegradasi namun tetap dapat melayani trafik masuk berkat redundansi server kedua.
-
-  Dalam log kernel WSL2, penutupan socket koneksi `nextcloud-app-1` memicu pelepasan alokasi file descriptor pada tabel koneksi HAProxy, menjaga kestabilan alokasi memori internal load balancer.
+- **Analisis Rekayasa Teknis**:
+  Ketika kontainer `nextcloud-app-1` dimatikan paksa menggunakan perintah stop, port HTTP internal 80 kontainer tersebut tertutup secara instan. HAProxy yang mengirimkan health check TCP polling berkala gagal mendeteksi respons handshake `SYN-ACK` dari port target. Setelah health check mendeteksi kegagalan beruntun sebanyak 3 kali (sesuai parameter default `fall 3`), HAProxy secara otomatis menandai status server `app1` sebagai **DOWN** (merah tua). Keterangan log `LastChk` menampilkan pesan kegagalan koneksi **L4CON in 73ms** (Layer 4 Connection failed). Pintu alokasi trafik ke `app1` ditutup secara instan. Seluruh trafik klien aktif yang sebelumnya terikat cookie `SERVERID=app1` akan didegradasi status stickiness-nya dan HAProxy mengalihkan koneksinya secara paksa ke server backend sehat tersisa (`app2`), menghindari terjadinya error HTTP 503 Service Unavailable bagi pengguna akhir. Kecepatan deteksi kegagalan HAProxy (di bawah 3 detik) dicapai berkat konfigurasi parameter `inter 2000` (polling setiap 2 detik) dan `fall 3`. Kecepatan failover ini sangat vital dalam langkah industri, karena meminimalkan jeda waktu gangguan layanan yang dapat menyebabkan putusnya koneksi upload data klien. HAProxy juga merekam statistik jumlah server aktif backend (`Act = 1`), menandakan klaster backend saat ini berada dalam status terdegradasi namun tetap dapat melayani trafik masuk berkat redundansi server kedua. Dalam log kernel WSL2, penutupan socket koneksi `nextcloud-app-1` memicu pelepasan alokasi file descriptor pada tabel koneksi HAProxy, menjaga kestabilan alokasi memori internal load balancer.
 
 ---
 
 #### Pengujian Langkah 14: Pengujian High Availability (HA)
+
+##### Pembuatan & Konfigurasi Berkas
+Konfigurasi ini tidak memerlukan pembuatan berkas baru secara manual karena penanganan stateless Nextcloud melintasi failover kontainer didukung oleh integrasi MariaDB database terpusat, Redis cache session replication, dan primary storage S3 API MinIO.
+
+##### Tangkapan Layar Pengujian
+![Bukti Pengujian Langkah 14a - Akses Web Saat Failover](img/langkah3.4a.png)
+![Bukti Pengujian Langkah 14b - Upload Sukses Saat Failover](img/langkah3.4b.png)
+
+##### Prosedur & Analisis Pengujian
 - **Tujuan Pengujian**: Memastikan pengguna tetap dapat menggunakan aplikasi (login, download, upload) tanpa downtime meskipun salah satu kontainer backend mati.
 - **Desain Langkah**: Melakukan pengunggahan dokumen dari akun user `developer1` ketika kontainer `nextcloud-app-1` dalam kondisi mati.
 - **Input Uji**: Dokumen teks `Laporan_Staff.txt` yang diunggah dari akun `developer1` saat status kontainer Nextcloud 1 mati.
-- **Prosedur Langkah Pengujian**:   Sembari kontainer `nextcloud-app-1` dalam kondisi mati, administrator membuka browser utama Windows Host, mengakses `https://localhost`, lalu login menggunakan akun `developer1` (password: `Dev!eloper@2026Secure`). Administrator mengunggah berkas `Laporan_Staff.txt` ke cloud storage dan memantau status pengunggahan.
+- **Prosedur Pengujian**:
+  1. Sembari kontainer `nextcloud-app-1` dalam kondisi mati, administrator membuka browser utama Windows Host dan mengakses `https://localhost`.
+  2. Login menggunakan akun `developer1` (password: `Dev!eloper@2026Secure`).
+  3. Administrator mengunggah berkas `Laporan_Staff.txt` ke cloud storage dan memantau status pengunggahan.
 - **Output yang Diharapkan**: Sesi login user `developer1` berhasil divalidasi. Berkas `Laporan_Staff.txt` terunggah sukses 100% tanpa hambatan. Sesi login tidak terputus karena request dialihkan secara transparan ke kontainer `nextcloud-app-2` yang aktif.
 - **Hasil Pengujian**: **SUKSES**
-- **Analisis Rekayasa Teknis**:   Langkah pengujian ini membuktikan keandalan rekayasa arsitektur High Availability. Meskipun kontainer `nextcloud-app-1` berada dalam kondisi **9m21s DOWN** (merah), browser klien tetap dapat mengakses antarmuka cloud storage, login sebagai `developer1`, dan menyelesaikan pengunggahan berkas teks `Laporan_Staff.txt` secara sukses. Alur failover ini dapat berjalan transparan tanpa hambatan karena didukung oleh dua komponen stateless:
-  
-  1. **Redis Session Store**: Data token sesi login `developer1` yang diisi saat login tidak disimpan secara lokal di filesystem PHP kontainer
-1. Data sesi tersebut ditulis secara global pada kontainer Redis cache (`redis-cache`). Ketika request dialihkan secara fisik oleh HAProxy ke `nextcloud-app-2` karena node 1 mati, `nextcloud-app-2` melakukan query token sesi ke Redis cache dan mendapati sesi tersebut masih aktif. Hasilnya, pengguna tidak dipaksa melakukan login ulang (*transparent failover*).
+- **Analisis Rekayasa Teknis**:
+  Langkah pengujian ini membuktikan keandalan rekayasa arsitektur High Availability. Meskipun kontainer `nextcloud-app-1` berada dalam kondisi **9m21s DOWN** (merah), browser klien tetap dapat mengakses antarmuka cloud storage, login sebagai `developer1`, dan menyelesaikan pengunggahan berkas teks `Laporan_Staff.txt` secara sukses. Alur failover ini dapat berjalan transparan tanpa hambatan karena didukung oleh dua komponen stateless:
+  1. **Redis Session Store**: Data token sesi login `developer1` yang diisi saat login tidak disimpan secara lokal di filesystem PHP kontainer 1. Data sesi tersebut ditulis secara global pada kontainer Redis cache (`redis-cache`). Ketika request dialihkan secara fisik oleh HAProxy ke `nextcloud-app-2` karena node 1 mati, `nextcloud-app-2` melakukan query token sesi ke Redis cache dan mendapati sesi tersebut masih aktif. Hasilnya, pengguna tidak dipaksa melakukan login ulang (*transparent failover*).
   2. **MinIO Stateless Storage**: Berkas yang diunggah dikirimkan via API S3 ke kontainer penyimpanan MinIO terpusat. Keberadaan file biner tidak terikat pada kontainer aplikasi Nextcloud lokal yang mati, menjamin aksesibilitas data tetap terjaga 100% menggunakan node cadangan.
-
-  Mekanisme stateless ini juga diiringi oleh pemeliharaan integritas database MariaDB. MariaDB menyimpan metadata file secara aman, sehingga file `Laporan_Staff.txt` yang baru saja diunggah langsung terdaftar di sistem. Ketika kontainer Nextcloud 1 pulih di masa mendatang, ia akan menampilkan file yang sama persis karena kedua node membaca sumber database relasional yang sama.
-
-  Sesi lock Redis juga memverifikasi perlindungan transaksi. Bila kontainer 1 mati saat menulis lock, batas waktu retensi *TTL (Time to Live)* pada Redis key akan menghapus kunci secara otomatis dalam hitungan detik, mencegah terjadinya *deadlock* pada klaster backend.
-
-  Proses pemrosesan kueri PHP Nextcloud dialihkan dari model pemrosesan thread lokal ke model penanganan terdistribusi S3 Client SDK, meminimalkan latensi respons di sisi pengguna hingga berada di bawah 150 milidetik saat failover berlangsung.
+  Mekanisme stateless ini juga diiringi oleh pemeliharaan integritas database MariaDB. MariaDB menyimpan metadata file secara aman, sehingga file `Laporan_Staff.txt` yang baru saja diunggah langsung terdaftar di sistem. Ketika kontainer Nextcloud 1 pulih di masa mendatang, ia akan menampilkan file yang sama persis karena kedua node membaca sumber database relasional yang sama. Sesi lock Redis juga memverifikasi perlindungan transaksi. Bila kontainer 1 mati saat menulis lock, batas waktu retensi *TTL (Time to Live)* pada Redis key akan menghapus kunci secara otomatis dalam hitungan detik, mencegah terjadinya *deadlock* pada klaster backend. Proses pemrosesan kueri PHP Nextcloud dialihkan dari model pemrosesan thread lokal ke model penanganan terdistribusi S3 Client SDK, meminimalkan latensi respons di sisi pengguna hingga berada di bawah 150 milidetik saat failover berlangsung.
 
 ---
 
 #### Pengujian Langkah 15: Pengujian Recovery Layanan
+
+##### Pembuatan & Konfigurasi Berkas
+Konfigurasi ini tidak memerlukan pembuatan berkas baru secara manual karena didefinisikan secara deklaratif di parameter backend check stats `rise 2` pada berkas `haproxy.cfg`. HAProxy secara otomatis membuka kembali rute beban trafik ke node yang sehat kembali.
+
+##### Tangkapan Layar Pengujian
+![Bukti Pengujian Langkah 15 - Recovery](img/langkah3.5.png)
+
+##### Prosedur & Analisis Pengujian
 - **Tujuan Pengujian**: Memverifikasi kemampuan pemulihan otomatis (*auto-recovery*) HAProxy di mana kontainer backend yang sempat mati dan dihidupkan kembali akan secara otomatis dideteksi kesehatannya, lalu dimasukkan kembali ke dalam daftar backend aktif untuk menerima beban trafik secara normal.
 - **Desain Langkah**: Menyalakan kembali kontainer `nextcloud-app-1` melalui terminal WSL2, kemudian memantau perubahan status kesehatannya di portal statistik HAProxy.
 - **Input Uji**: Perintah CLI `docker compose start nextcloud-app-1` pada terminal WSL2.
-- **Prosedur Langkah Pengujian**:   Administrator membuka terminal WSL2, memicu penyalaan kembali kontainer `nextcloud-app-1`. Sembari kontainer melakukan proses booting, administrator memantau tampilan tabel backend pada portal stats HAProxy di port 1936.
+- **Prosedur Pengujian**:
+  1. Administrator membuka terminal WSL2, memicu penyalaan kembali kontainer `nextcloud-app-1`.
+  2. Sembari kontainer melakukan proses booting, administrator memantau tampilan tabel backend pada portal stats HAProxy di port 1936.
 - **Output yang Diharapkan**: Status server `app1` di dashboard HAProxy berubah kembali dari merah (`DOWN`) menjadi hijau (`UP/Active`) dalam waktu singkat (di bawah 5 detik setelah container menyala).
 - **Hasil Pengujian**: **SUKSES**
-- **Analisis Rekayasa Teknis**:   Setelah kontainer `nextcloud-app-1` dinyalakan kembali, web server Apache di dalam kontainer memproses inisialisasi port internal 80. Polling health check TCP HAProxy mengirimkan request SYN dan secara sukses menerima respons ACK dari target. Parameter pemulihan HAProxy dikonfigurasi secara cerdas (`rise 2` dan `inter 2000`), yang mewajibkan server backend untuk berhasil melewati uji kesehatan sebanyak 2 kali berturut-turut sebelum dinyatakan sehat kembali.
-  
-  Dalam waktu 4 detik, baris server `app1` pulih sepenuhnya menjadi status **4s UP** (hijau) dengan status check **L4OK**. HAProxy secara otomatis membuka kembali gerbang routing trafik dan mulai mendistribusikan request baru ke server `app1` secara Round Robin bergantian dengan `app2`, mengembalikan kapasitas redundansi sistem penuh tanpa membutuhkan intervensi restart atau reload file konfigurasi load balancer secara manual.
-
-  Kemampuan auto-recovery yang dinamis ini mengeliminasi kebutuhan pemeliharaan manual dari administrator jaringan. Sistem load balancer secara mandiri menyeimbangkan kapasitas backend tanpa memicu gangguan downtime pada user yang sedang aktif berselancar.
-
-  Riwayat total downtime target terekam di kolom `Dwntme` sebesar `13m41s`, menyajikan data track-record insiden pemadaman node yang sangat bernilai untuk evaluasi *Service Level Agreement* (SLA) infrastruktur cloud organisasi.
-
-  Setelah node UP kembali, server Nextcloud 1 memproses sinkronisasi status cache internalnya terhadap Redis cache dan database MariaDB untuk menyesuaikan metadata status file terbaru, menjamin konsistensi data logic sistem tetap terjaga melintasi klaster backend.
+- **Analisis Rekayasa Teknis**:
+  Setelah kontainer `nextcloud-app-1` dinyalakan kembali, web server Apache di dalam kontainer memproses inisialisasi port internal 80. Polling health check TCP HAProxy mengirimkan request SYN dan secara sukses menerima respons ACK dari target. Parameter pemulihan HAProxy dikonfigurasi secara cerdas (`rise 2` dan `inter 2000`), yang mewajibkan server backend untuk berhasil melewati uji kesehatan sebanyak 2 kali berturut-turut sebelum dinyatakan sehat kembali. Dalam waktu 4 detik, baris server `app1` pulih sepenuhnya menjadi status **4s UP** (hijau) dengan status check **L4OK**. HAProxy secara otomatis membuka kembali gerbang routing trafik dan mulai mendistribusikan request baru ke server `app1` secara Round Robin bergantian dengan `app2`, mengembalikan kapasitas redundansi sistem penuh tanpa membutuhkan intervensi restart atau reload file konfigurasi load balancer secara manual. Kemampuan auto-recovery yang dinamis ini mengeliminasi kebutuhan pemeliharaan manual dari administrator jaringan. Sistem load balancer secara mandiri menyeimbangkan kapasitas backend tanpa memicu gangguan downtime pada user yang sedang aktif berselancar. Riwayat total downtime target terekam di kolom `Dwntme` sebesar `13m41s`, menyajikan data track-record insiden pemadaman node yang sangat bernilai untuk evaluasi *Service Level Agreement* (SLA) infrastruktur cloud organisasi. Setelah node UP kembali, server Nextcloud 1 memproses sinkronisasi status cache internalnya terhadap Redis cache dan database MariaDB untuk menyesuaikan metadata status file terbaru, menjamin konsistensi data logic sistem tetap terjaga melintasi klaster backend.
 
 ---
 
 #### Pengujian Langkah 16: Pengujian Monitoring Sistem Menggunakan Prometheus
 
-- **Kode Konfigurasi & Implementasi**:
-  Berikut adalah berkas konfigurasi Prometheus (`prometheus.yml`) untuk target scraping:
-  - **`config/prometheus/prometheus.yml`**:
-    ```yaml
-    global:
+##### Pembuatan & Konfigurasi Berkas
+Untuk melakukan langkah ini, silakan buat berkas-berkas konfigurasi berikut:
+
+Buat berkas **`config/prometheus/prometheus.yml`** lalu salin kode berikut ke dalamnya:
+```yaml
+global:
   scrape_interval: 15s
 
 scrape_configs:
@@ -1172,29 +1272,34 @@ scrape_configs:
       password: 'adminstats'
     static_configs:
       - targets: ['haproxy-lb:1936']
-    ```
+```
 
+##### Tangkapan Layar Pengujian
+![Bukti Pengujian Langkah 16 - Prometheus Targets](img/langkah3.6.png)
+
+##### Prosedur & Analisis Pengujian
 - **Tujuan Pengujian**: Memastikan server Prometheus berhasil melakukan penarikan data metrik (*active-scraping*) secara periodik dari target loopback internal dan target load balancer HAProxy via HTTP basic authentication.
 - **Desain Langkah**: Mengakses antarmuka web administrator Prometheus Web UI di port 9090 dan menganalisis tabel keaktifan targets.
 - **Input Uji**: URL `http://localhost:9090` di browser komputer klien.
-- **Prosedur Langkah Pengujian**:   Administrator membuka browser web, mengetikkan alamat URL `http://localhost:9090` pada address bar, lalu menekan Enter. Pada panel navigasi atas Prometheus, administrator mengklik menu *Status* -> *Targets*, lalu mengamati status kesehatan target.
-- **Output yang Diharapkan**: Dashboard Prometheus termuat. Halaman Targets menampilkan target `prometheus` dan target `haproxy` dalam status berwarna hijau bertuliskan **UP**.
+- **Prosedur Pengujian**:
+  1. Buka browser klien, ketik `http://localhost:9090`, lalu tekan Enter.
+  2. Buka menu **Status** -> **Targets**.
+  3. Amati status keaktifan dan respons dari target `haproxy` dan `prometheus`.
+- **Output yang Diharapkan**: Antarmuka Prometheus terbuka secara visual. Kedua target (`haproxy` dan `prometheus`) berada dalam status `UP` berwarna hijau.
 - **Hasil Pengujian**: **SUKSES**
-- **Analisis Rekayasa Teknis**:   Prometheus bekerja menggunakan model tarikan (*pull model*) yang secara periodik mengirimkan request HTTP GET ke endpoint metrik target. Di dalam file konfigurasi `prometheus.yml`, target `haproxy` didaftarkan menggunakan domain internal Docker `haproxy-lb:1936` pada path `/metrics`. Karena port statistik HAProxy dilindungi oleh proteksi kredensial stats, Prometheus memanfaatkan opsi konfigurasi `basic_auth` untuk mengirimkan header otentikasi HTTP dasar.
-  
-  Tangkapan layar di atas menunjukkan status target `haproxy` berada dalam kondisi **UP** dengan waktu scraping terakhir `2.861s ago` dan durasi respons scraping `1.042ms`. Hal ini membuktikan bahwa Prometheus berhasil melompati proteksi kata sandi stats HAProxy dan berhasil menerjemahkan metrik mentah yang disajikan oleh modul exporter internal HAProxy ke dalam database deret waktu (*time-series database*) internalnya secara berkala.
-
-  Scraping target ini sangat penting dalam arsitektur monitoring terdistribusi. Dengan mengumpulkan data keaktifan HAProxy, Prometheus dapat memicu alert sistem secara otomatis jika terdeteksi adanya penurunan performa load balancer, kegagalan koneksi backend, atau lonjakan request abnormal.
+- **Analisis Rekayasa Teknis**:
+  Berdasarkan gambar tangkapan layar di atas, status target monitoring pada halaman Prometheus Web UI menunjukkan status **UP** berwarna hijau untuk kedua job target. Prometheus berhasil melakukan penarikan data metrik kinerja dari target kontainer `haproxy-lb` port stats 1936 `/metrics` dan container Prometheus loopback port 9090 target secara periodik setiap 15 detik (sesuai parameter `scrape_interval`). Penggunaan konfigurasi `basic_auth` dengan menyuplai kredensial username `admin` dan password `adminstats` yang tepat pada file `prometheus.yml` meloloskan request otentikasi Prometheus dari kebijakan proteksi stats HAProxy, meniadakan anomali error 401 Unauthorized. Data metrik yang berhasil dikumpulkan (seperti jumlah request per detik, byte transfer, status error, dan memori kontainer) disimpan ke dalam sistem basis data berbasis deret waktu (*Time-Series Database* - TSDB) bawaan Prometheus secara terstruktur, siap untuk disajikan ke dalam engine visualisasi Grafana Dashboard.
 
 ---
 
 #### Pengujian Langkah 17: Pengujian Monitoring Sistem Menggunakan Grafana
 
-- **Kode Konfigurasi & Implementasi**:
-  Berikut adalah berkas konfigurasi data source Grafana secara deklaratif (`datasource.yml`):
-  - **`config/grafana/provisioning/datasources/datasource.yml`**:
-    ```yaml
-    apiVersion: 1
+##### Pembuatan & Konfigurasi Berkas
+Untuk melakukan langkah ini, silakan buat berkas-berkas konfigurasi berikut:
+
+Buat berkas **`config/grafana/provisioning/datasources/datasource.yml`** lalu salin kode berikut ke dalamnya:
+```yaml
+apiVersion: 1
 
 datasources:
   - name: Prometheus
@@ -1203,20 +1308,29 @@ datasources:
     url: http://prom-server:9090
     isDefault: true
     editable: true
-    ```
+```
 
+##### Tangkapan Layar Pengujian
+![Bukti Pengujian Langkah 17 - Grafana Dashboard](img/langkah3.7.png)
+![Bukti Pengujian Langkah 17 - Grafana Dashboard Detail 1](img/langkah3.7a.png)
+![Bukti Pengujian Langkah 17 - Grafana Dashboard Detail 2](img/langkah3.7b.png)
+![Bukti Pengujian Langkah 17 - Grafana Dashboard Detail 3](img/langkah3.7c.png)
+
+##### Prosedur & Analisis Pengujian
 - **Tujuan Pengujian**: Memverifikasi keberhasilan integrasi visualisasi data source Prometheus pada dasbor Grafana, memastikan data deret waktu (*time-series data*) dirender secara visual dalam bentuk grafik real-time yang akurat dan interaktif.
 - **Desain Langkah**: Mengakses halaman utama dashboard Grafana di port 3000, login, meng-import template dashboard Prometheus Overview, dan menganalisis grafik indikator performa.
 - **Input Uji**: URL `http://localhost:3000` beserta template ID dashboard `3662`.
-- **Prosedur Langkah Pengujian**:   Administrator membuka browser, mengakses `http://localhost:3000`, login dengan user default admin, meng-import template dashboard ID `3662`, menghubungkannya ke data source Prometheus, lalu memantau grafik Uptime, total series, append rate, dan aktivitas Garbage Collection.
-- **Output yang Diharapkan**: Dasbor visual Grafana termuat dengan sukses. Grafik menampilkan data real-time yang terus berubah secara dinamis, tanpa ada indikasi error data source connection.
+- **Prosedur Pengujian**:
+  1. Buka browser klien, ketik `http://localhost:3000` dan tekan Enter.
+  2. Login menggunakan username `admin` dan password `adminstats` (atau default).
+  3. Buka menu **Dashboards** -> **Import**, masukkan ID `3662`, pilih datasource Prometheus bawaan, lalu klik **Import**.
+  4. Amati rendering grafik pada dashboard Prometheus Overview yang termuat.
+- **Output yang Diharapkan**: Dashboard terisi metrik data visual secara real-time, status panel terisi, dan tidak menampilkan status error N/A.
 - **Hasil Pengujian**: **SUKSES**
-- **Analisis Rekayasa Teknis**:   Provisiasi visual pada Grafana terhubung secara seamless dengan server Prometheus melalui konfigurasi otomatis berkas `datasource.yml`. Pada dashboard *Prometheus 2.0 Overview* (ID: 3662), data metrik dirender menggunakan kueri bahasa PromQL (*Prometheus Query Language*) secara kontinu. Dasbor atas menunjukkan uptime Prometheus mencapai 100% penuh selama 1 jam terakhir dengan jumlah data series aktif terakumulasi sebanyak 1451 series. Status `N/A` pada missed/skipped iterations verifikasi tidak ada query internal yang mengalami keterlambatan eksekusi.
-  
-  Dasbor tengah menyajikan visualisasi grafik *Appended Samples per Second* yang berfluktuasi secara dinamis di kisaran 60-80 samples/s, menggambarkan kecepatan penyimpanan data metrik baru. Grafik durasi scraping menunjukkan rata-rata waktu respons penarikan metrik berada di bawah 0.008 detik, membuktikan efisiensi komunikasi antar kontainer di dalam Docker bridge network. Dasbor bawah menunjukkan keaktifan siklus pembersihan memori otomatis (*Garbage Collection*) untuk menjaga konsumsi RAM kontainer agar tetap stabil dan terhindar dari anomali kebocoran memori (*memory leak*), memvalidasi kesiapan sistem monitoring untuk kebutuhan diagnosa sistem jangka panjang.
-
+- **Analisis Rekayasa Teknis**:
   Keberhasilan visualisasi Grafana ini membuktikan stabilitas integrasi provisioning datasource Grafana. Datasource yang didefinisikan secara deklaratif di `datasource.yml` terbukti langsung dapat dibaca oleh panel-panel visualisasi Grafana, menghemat waktu setup manual bagi administrator sistem saat melakukan deployment dari nol.
 
+---
 
 ## BAB VI: PENUTUP (Kesimpulan dan Saran)
 
