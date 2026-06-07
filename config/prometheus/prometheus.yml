@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'haproxy'
+    metrics_path: '/metrics' # HAProxy stats Prometheus exporter endpoint
+    basic_auth:
+      username: 'admin'
+      password: 'adminstats'
+    static_configs:
+      - targets: ['haproxy-lb:1936']

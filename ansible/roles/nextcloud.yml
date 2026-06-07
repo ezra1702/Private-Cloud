@@ -1,0 +1,48 @@
+---
+- name: 1. Salin berkas docker-compose.yml dari workspace ke host target
+  copy:
+    src: "{{ playbook_dir }}/../docker/docker-compose.yml"
+    dest: "{{ project_root }}/docker/docker-compose.yml"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: 1.1 Buat direktori konfigurasi Prometheus pada host target
+  file:
+    path: "{{ project_root }}/config/prometheus"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: 1.2 Salin konfigurasi Prometheus dari workspace ke host target
+  copy:
+    src: "{{ playbook_dir }}/../config/prometheus/prometheus.yml"
+    dest: "{{ project_root }}/config/prometheus/prometheus.yml"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: 1.3 Buat direktori konfigurasi Grafana provisioning pada host target
+  file:
+    path: "{{ project_root }}/config/grafana/provisioning/datasources"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: 1.4 Salin konfigurasi datasource Grafana dari workspace ke host target
+  copy:
+    src: "{{ playbook_dir }}/../config/grafana/provisioning/datasources/datasource.yml"
+    dest: "{{ project_root }}/config/grafana/provisioning/datasources/datasource.yml"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: 2. Jalankan seluruh container stack menggunakan Docker Compose
+  command: docker compose -f "{{ project_root }}/docker/docker-compose.yml" up -d
+  register: compose_output
+
+- name: 3. Tampilkan output jalannya kontainer
+  debug:
+    var: compose_output.stdout_lines

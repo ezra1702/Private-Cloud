@@ -1,0 +1,8 @@
+---
+- name: 1. Buat direktori penyimpanan persisten basis data MariaDB
+  file:
+    path: "{{ project_root }}/mariadb"
+    state: directory
+    owner: 999
+    group: 999
+    mode: '0755'

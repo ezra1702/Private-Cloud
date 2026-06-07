@@ -1,0 +1,168 @@
+Saya adalah mahasiswa Teknik Komputer yang sedang mengerjakan Tugas Akhir Mata Kuliah Administrasi Sistem Server.
+
+Bantu saya merancang proyek secara lengkap dengan judul:
+
+"Rancang Bangun Platform Enterprise Private Cloud Storage Berbasis Nextcloud dengan Integrasi Object Storage MinIO, Caching Redis, Keamanan SSL/TLS, dan High Availability Terotomatisasi Menggunakan Ansible Roles Berbasis Docker Container pada WSL2"
+
+Proyek ini harus mengimplementasikan 5 topik mata kuliah berikut dengan cakupan industri:
+
+1. Docker – Kontainer (Multi-Container Orchestration: Nextcloud, MariaDB, HAProxy, Redis, MinIO, Prometheus, Grafana)
+2. Web Server (HAProxy/Nginx dengan HTTPS SSL/TLS Termination & Apache backend)
+3. Manajemen User (Otentikasi internal Nextcloud, pembagian grup, hak akses, dan manajemen kuota penyimpanan)
+4. Infrastructure as Code (Ansible Roles modular untuk otomatisasi deployment engine, config, dan container lifecycle)
+5. High Availability (Round Robin Load Balancing, Session Stickiness, failover, stateless nodes via MinIO S3 API, dan Redis transactional locking)
+
+Studi kasus:
+
+Membangun platform private cloud storage yang berfungsi seperti Google Drive sederhana menggunakan Nextcloud. Sistem harus mendukung manajemen pengguna, upload dan download file melalui browser, deployment otomatis menggunakan Ansible, serta memiliki mekanisme high availability menggunakan beberapa container dan load balancer.
+
+Lingkungan implementasi:
+
+* Laptop pribadi
+* WSL2 (Ubuntu 22.04 LTS) pada Windows Host
+* Docker Engine dan Docker Compose Plugin
+* Nextcloud (App Server)
+* MariaDB (Relational Database)
+* Redis (In-Memory Cache & File Locking)
+* MinIO (S3-Compatible Object Storage)
+* HAProxy atau Nginx (SSL/TLS Load Balancer)
+* Prometheus & Grafana (Monitoring Stack)
+* Ansible (Automated Deployment via Roles)
+
+Arsitektur yang digunakan:
+
+1 Load Balancer (HAProxy/Nginx dengan HTTPS)
+2 Container Nextcloud (Replika Backend)
+1 Database MariaDB (Relational Metadata DB)
+1 Redis Container (In-Memory Caching & Locking)
+1 MinIO Container (S3 Object Storage)
+1 Prometheus Container & 1 Grafana Container (Monitoring)
+1 Node Controller Ansible (WSL2 Localhost Connection)
+
+Buatkan rancangan proyek lengkap yang mencakup:
+
+A. PERENCANAAN PROYEK
+
+1. Judul
+2. Latar Belakang
+3. Rumusan Masalah
+4. Tujuan
+5. Manfaat
+6. Deskripsi Umum Sistem
+7. Topik Mata Kuliah yang Digunakan dan Keterkaitannya dengan Proyek
+
+B. ANALISIS SISTEM
+
+1. Analisis Kebutuhan Fungsional
+2. Analisis Kebutuhan Nonfungsional
+3. Analisis Pengguna Sistem
+4. Analisis Infrastruktur
+
+C. DESAIN SISTEM
+
+1. Arsitektur Sistem
+2. Topologi Jaringan
+3. Diagram Alur Sistem
+4. Diagram Komunikasi Antar Komponen
+5. Diagram Input-Process-Output (IPO)
+6. Desain Manajemen User
+7. Desain High Availability
+8. Desain Otomatisasi Infrastruktur
+9. Desain Docker Container
+
+Gunakan diagram ASCII untuk seluruh diagram.
+
+D. IMPLEMENTASI
+
+1. Instalasi Docker
+2. Instalasi Docker Compose
+3. Instalasi Ansible
+4. Konfigurasi Inventory Ansible
+5. Konfigurasi Playbook Ansible
+6. Deployment MariaDB
+7. Deployment Nextcloud
+8. Deployment Load Balancer
+9. Konfigurasi Round Robin Load Balancing
+10. Konfigurasi User Management
+11. Konfigurasi Persistent Storage Docker Volume
+12. Deployment Otomatis Menggunakan Ansible
+
+Sertakan seluruh command Linux yang digunakan beserta penjelasannya.
+
+E. FILE KONFIGURASI
+
+Buatkan contoh lengkap:
+
+1. docker-compose.yml
+2. inventory.ini
+3. ansible.cfg
+4. deploy.yml
+5. konfigurasi HAProxy
+6. konfigurasi Nginx Load Balancer (alternatif)
+7. struktur folder project
+
+F. INPUT - PROCESS - OUTPUT
+
+Jelaskan secara rinci:
+
+Input:
+
+* Login user
+* Upload file
+* Download file
+* Manajemen file
+
+Process:
+
+* Validasi user
+* Penyimpanan file
+* Replikasi layanan
+* Load balancing
+* Deployment otomatis
+
+Output:
+
+* File tersimpan
+* File dapat diakses kembali
+* Sistem tetap aktif saat salah satu container gagal
+
+G. PENGUJIAN
+
+Buat minimal 15 skenario pengujian yang terdiri dari:
+
+1. Pengujian akses web Nextcloud
+2. Pengujian login administrator
+3. Pengujian login user
+4. Pengujian pembuatan user
+5. Pengujian upload file
+6. Pengujian download file
+7. Pengujian hapus file
+8. Pengujian Docker container
+9. Pengujian restart container
+10. Pengujian deployment otomatis menggunakan Ansible
+11. Pengujian load balancing
+12. Pengujian round robin
+13. Pengujian failover container
+14. Pengujian high availability
+15. Pengujian recovery layanan
+
+Untuk setiap pengujian berikan:
+
+* Tujuan
+* Skenario
+* Input
+* Langkah Pengujian
+* Output yang Diharapkan
+* Hasil
+* Analisis
+
+H. ANALISIS HASIL
+
+1. Analisis keberhasilan implementasi
+2. Analisis penggunaan Docker
+3. Analisis penggunaan Ansible
+4. Analisis mekanisme High Availability
+5. Analisis manajemen user
+6. Kelebihan sistem
+7. Kekurangan sistem
+8. Potensi pengembangan

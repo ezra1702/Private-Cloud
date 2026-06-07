@@ -1,0 +1,8 @@
+---
+- name: 1. Buat direktori penyimpanan persisten MinIO Object Storage
+  file:
+    path: "{{ project_root }}/minio"
+    state: directory
+    owner: root
+    group: root
+    mode: '0777'

@@ -1,0 +1,44 @@
+---
+- name: Deploy Enterprise Private Cloud Storage Stack on WSL2
+  hosts: cloud_servers
+  become: yes
+  vars:
+    # Direktori kerja proyek di host WSL2
+    project_root: /opt/private-cloud
+    ssl_cert_dir: /opt/private-cloud/config/ssl
+    
+    # Kredensial Database
+    db_root_password: adminrootpassword
+    db_name: nextcloud_db
+    db_user: nextcloud_user
+    db_password: nextcloudpassword
+    
+    # MinIO S3 Credentials
+    minio_root_user: minioadmin
+    minio_root_password: minioadminpassword
+    minio_bucket: nextcloud
+
+  tasks:
+    - name: Mengimpor tugas sistem dasar (common)
+      import_tasks: roles/common.yml
+
+    - name: Mengimpor tugas instalasi Docker
+      import_tasks: roles/docker.yml
+
+    - name: Mengimpor tugas pembuatan sertifikat SSL
+      import_tasks: roles/certificates.yml
+
+    - name: Mengimpor tugas setup database MariaDB
+      import_tasks: roles/database.yml
+
+    - name: Mengimpor tugas setup Redis
+      import_tasks: roles/redis.yml
+
+    - name: Mengimpor tugas setup MinIO Object Storage
+      import_tasks: roles/minio.yml
+
+    - name: Mengimpor tugas setup Load Balancer
+      import_tasks: roles/loadbalancer.yml
+
+    - name: Mengimpor tugas setup Nextcloud & Run Stack
+      import_tasks: roles/nextcloud.yml

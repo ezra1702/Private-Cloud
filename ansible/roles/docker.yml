@@ -1,0 +1,52 @@
+---
+- name: 1. Buat direktori keyrings untuk GPG key Docker
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: 2. Download dan tambahkan GPG key resmi Docker
+  get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: '0644'
+    force: yes
+  when: ansible_distribution == "Ubuntu"
+
+- name: 2b. Hapus konfigurasi repositori Docker lama untuk mencegah konflik Signed-By
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/apt/sources.list.d/docker.list
+    - /etc/apt/sources.list.d/docker.sources
+  when: ansible_distribution == "Ubuntu"
+
+- name: 3. Daftarkan repositori Docker ke sumber APT
+  apt_repository:
+    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+    filename: docker
+  when: ansible_distribution == "Ubuntu"
+
+- name: 4. Jalankan APT update setelah menambahkan repositori
+  apt:
+    update_cache: yes
+  when: ansible_distribution == "Ubuntu"
+
+- name: 5. Install Docker Engine dan Docker Compose Plugin
+  apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+  when: ansible_distribution == "Ubuntu"
+
+- name: 6. Pastikan Docker service berjalan dan aktif
+  service:
+    name: docker
+    state: started
+    enabled: yes

@@ -1,0 +1,36 @@
+---
+- name: 0. Hapus konfigurasi repositori Docker lama yang merusak APT
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/apt/sources.list.d/docker.list
+    - /etc/apt/sources.list.d/docker.sources
+  when: ansible_os_family == "Debian"
+
+- name: 1. Update cache APT
+  apt:
+    update_cache: yes
+  when: ansible_os_family == "Debian"
+
+- name: 2. Install dependensi sistem dasar
+  apt:
+    name:
+      - curl
+      - gnupg
+      - ca-certificates
+      - openssl
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: 3. Buat direktori utama proyek di host target
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - "{{ project_root }}"
+    - "{{ project_root }}/config"
+    - "{{ project_root }}/docker"

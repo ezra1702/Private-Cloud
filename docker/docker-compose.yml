@@ -1,0 +1,137 @@
+version: '3.8'
+
+services:
+  mariadb-db:
+    image: mariadb:10.11
+    container_name: mariadb-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: adminrootpassword
+      MYSQL_DATABASE: nextcloud_db
+      MYSQL_USER: nextcloud_user
+      MYSQL_PASSWORD: nextcloudpassword
+    volumes:
+      - /opt/private-cloud/mariadb:/var/lib/mysql
+    networks:
+      - cloud-network
+
+  redis-cache:
+    image: redis:7-alpine
+    container_name: redis-cache
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - /opt/private-cloud/redis:/data
+    networks:
+      - cloud-network
+
+  minio-storage:
+    image: minio/minio:latest
+    container_name: minio-storage
+    restart: always
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadminpassword
+    ports:
+      - "9001:9001" # MinIO Console port mapped to host
+    volumes:
+      - /opt/private-cloud/minio:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - cloud-network
+
+  nextcloud-app-1:
+    image: nextcloud:apache
+    container_name: nextcloud-app-1
+    restart: always
+    environment:
+      MYSQL_HOST: mariadb-db:3306
+      MYSQL_DATABASE: nextcloud_db
+      MYSQL_USER: nextcloud_user
+      MYSQL_PASSWORD: nextcloudpassword
+      REDIS_HOST: redis-cache
+      OBJECTSTORE_S3_HOST: minio-storage
+      OBJECTSTORE_S3_PORT: 9000
+      OBJECTSTORE_S3_KEY: minioadmin
+      OBJECTSTORE_S3_SECRET: minioadminpassword
+      OBJECTSTORE_S3_BUCKET: nextcloud
+      OBJECTSTORE_S3_SSL: "false"
+      OBJECTSTORE_S3_USEPATHSTYLE: "true"
+      OBJECTSTORE_S3_USEPATH_STYLE: "true"
+    depends_on:
+      - mariadb-db
+      - redis-cache
+      - minio-storage
+    networks:
+      - cloud-network
+
+  nextcloud-app-2:
+    image: nextcloud:apache
+    container_name: nextcloud-app-2
+    restart: always
+    environment:
+      MYSQL_HOST: mariadb-db:3306
+      MYSQL_DATABASE: nextcloud_db
+      MYSQL_USER: nextcloud_user
+      MYSQL_PASSWORD: nextcloudpassword
+      REDIS_HOST: redis-cache
+      OBJECTSTORE_S3_HOST: minio-storage
+      OBJECTSTORE_S3_PORT: 9000
+      OBJECTSTORE_S3_KEY: minioadmin
+      OBJECTSTORE_S3_SECRET: minioadminpassword
+      OBJECTSTORE_S3_BUCKET: nextcloud
+      OBJECTSTORE_S3_SSL: "false"
+      OBJECTSTORE_S3_USEPATHSTYLE: "true"
+      OBJECTSTORE_S3_USEPATH_STYLE: "true"
+    depends_on:
+      - mariadb-db
+      - redis-cache
+      - minio-storage
+    networks:
+      - cloud-network
+
+  haproxy-lb:
+    image: haproxy:2.8-alpine
+    container_name: haproxy-lb
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "1936:1936"
+    volumes:
+      - /opt/private-cloud/config/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - /opt/private-cloud/config/ssl/haproxy.pem:/usr/local/etc/haproxy/ssl/haproxy.pem:ro
+    depends_on:
+      - nextcloud-app-1
+      - nextcloud-app-2
+    networks:
+      - cloud-network
+
+  prom-server:
+    image: prom/prometheus:latest
+    container_name: prom-server
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - /opt/private-cloud/config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - cloud-network
+
+  grafana-dash:
+    image: grafana/grafana:latest
+    container_name: grafana-dash
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - /opt/private-cloud/config/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - cloud-network
+
+networks:
+  cloud-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

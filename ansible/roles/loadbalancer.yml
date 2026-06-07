@@ -1,0 +1,27 @@
+---
+- name: 1. Buat direktori konfigurasi HAProxy dan Nginx pada host target
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - "{{ project_root }}/config/haproxy"
+    - "{{ project_root }}/config/nginx"
+
+- name: 2. Salin konfigurasi HAProxy dari workspace ke host target
+  copy:
+    src: "{{ playbook_dir }}/../config/haproxy/haproxy.cfg"
+    dest: "{{ project_root }}/config/haproxy/haproxy.cfg"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: 3. Salin konfigurasi Nginx dari workspace ke host target (Alternatif)
+  copy:
+    src: "{{ playbook_dir }}/../config/nginx/nginx.conf"
+    dest: "{{ project_root }}/config/nginx/nginx.conf"
+    owner: root
+    group: root
+    mode: '0644'

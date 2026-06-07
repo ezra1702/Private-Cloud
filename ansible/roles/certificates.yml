@@ -1,0 +1,33 @@
+---
+- name: 1. Buat direktori penyimpanan sertifikat SSL
+  file:
+    path: "{{ ssl_cert_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: 2. Cek apakah file sertifikat gabungan (haproxy.pem) sudah ada
+  stat:
+    path: "{{ ssl_cert_dir }}/haproxy.pem"
+  register: haproxy_pem_state
+
+- name: 3. Buat private key dan sertifikat SSL self-signed jika belum ada
+  command: >
+    openssl req -x509 -newkey rsa:2048 -sha256 -days 365 -nodes
+    -keyout "{{ ssl_cert_dir }}/private.key"
+    -out "{{ ssl_cert_dir }}/certificate.crt"
+    -subj "/C=ID/ST=DKI Jakarta/L=Jakarta/O=Technical University/OU=Computer Engineering/CN=localhost"
+  when: not haproxy_pem_state.stat.exists
+
+- name: 4. Gabungkan private key dan certificate untuk HAProxy (haproxy.pem)
+  shell: >
+    cat "{{ ssl_cert_dir }}/private.key" "{{ ssl_cert_dir }}/certificate.crt" > "{{ ssl_cert_dir }}/haproxy.pem"
+  when: not haproxy_pem_state.stat.exists
+
+- name: 5. Atur hak akses pada file haproxy.pem
+  file:
+    path: "{{ ssl_cert_dir }}/haproxy.pem"
+    mode: '0644'
+    owner: root
+    group: root
